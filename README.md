@@ -20,7 +20,7 @@ LocalRAG provides a complete RAG implementation that runs entirely on your local
 
 ## Prerequisites
 
-- .NET 8.0 SDK or later
+- .NET 10.0 SDK or later
 - Windows, Linux, or macOS
 - BERT ONNX model (see setup instructions below)
 - BERT vocabulary file (vocab.txt)
