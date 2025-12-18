@@ -2,10 +2,10 @@
 using Microsoft.ML.OnnxRuntime;
 using System.Text;
 using FastBertTokenizer;
-using static AnthropicApp.Database.MemoryHashIndex;
+using static LocalRAG.MemoryHashIndex;
 using System.Diagnostics;
 
-namespace AnthropicApp.Database
+namespace LocalRAG
 {
     public class EmbedderClassNew : IDisposable
     {
