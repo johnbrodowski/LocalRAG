@@ -9,7 +9,7 @@ using Microsoft.Data.Sqlite;
 using System.Diagnostics;
 using System.Text;
 
-namespace AnthropicApp.Database
+namespace LocalRAG
 {
     public class EmbeddingDatabaseNew : IDisposable
     {
