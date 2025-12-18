@@ -4,12 +4,27 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace AnthropicApp.Database
+namespace LocalRAG
 {
+    /// <summary>
+    /// Configuration settings for the LocalRAG system.
+    /// </summary>
     public class RAGConfiguration
     {
+        /// <summary>
+        /// Path to the SQLite database file for storing embeddings. Will be created if it doesn't exist.
+        /// </summary>
         public string DatabasePath { get; set; } = "Database\\Memory\\FeedbackEmbeddings512.db";
+
+        /// <summary>
+        /// Path to the ONNX BERT model file. Download a BERT model in ONNX format and update this path.
+        /// Example: https://huggingface.co/models?library=onnx&search=bert
+        /// </summary>
         public string ModelPath { get; set; } = "onnxBERT\\model2.onnx";
+
+        /// <summary>
+        /// Path to the BERT vocabulary file (vocab.txt). Should match the BERT model being used.
+        /// </summary>
         public string VocabularyPath { get; set; } = "Vocabularies\\base_uncased_large.txt";
         public int MaxSequenceLength { get; set; } = 512;
         public int WordsPerString { get; set; } = 40;

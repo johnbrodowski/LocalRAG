@@ -361,3 +361,18 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# LocalRAG specific files
+# Model files (large binary files - download separately)
+*.onnx
+*.onnx.data
+
+# Database files (generated at runtime)
+*.db
+*.db-shm
+*.db-wal
+
+# Model directories
+onnxBERT/
+Vocabularies/
+Database/
