@@ -11,21 +11,27 @@ namespace LocalRAG
     /// </summary>
     public class RAGConfiguration
     {
+        private static string GetAppPath(string relativePath)
+        {
+            var basePath = AppDomain.CurrentDomain.BaseDirectory;
+            return Path.Combine(basePath, relativePath);
+        }
+
         /// <summary>
         /// Path to the SQLite database file for storing embeddings. Will be created if it doesn't exist.
         /// </summary>
-        public string DatabasePath { get; set; } = "Database\\Memory\\FeedbackEmbeddings512.db";
+        public string DatabasePath { get; set; } = GetAppPath(Path.Combine("Database", "Memory", "FeedbackEmbeddings512.db"));
 
         /// <summary>
         /// Path to the ONNX BERT model file. Download a BERT model in ONNX format and update this path.
         /// Example: https://huggingface.co/models?library=onnx&search=bert
         /// </summary>
-        public string ModelPath { get; set; } = "onnxBERT\\model2.onnx";
+        public string ModelPath { get; set; } = GetAppPath(Path.Combine("onnxBERT", "model2.onnx"));
 
         /// <summary>
         /// Path to the BERT vocabulary file (vocab.txt). Should match the BERT model being used.
         /// </summary>
-        public string VocabularyPath { get; set; } = "Vocabularies\\base_uncased_large.txt";
+        public string VocabularyPath { get; set; } = GetAppPath(Path.Combine("Vocabularies", "base_uncased_large.txt"));
         public int MaxSequenceLength { get; set; } = 512;
         public int WordsPerString { get; set; } = 40;
         public double OverlapPercentage { get; set; } = 15;
