@@ -19,46 +19,46 @@ namespace DemoApp
         private async void Form1_Load(object sender, EventArgs e)
         {
             _feedbackEmbeddingDatabase = new EmbeddingDatabaseNew(new RAGConfiguration());
-             await Test();
+           // await Test();
         }
 
         private async Task Test()
         {
-            await _feedbackEmbeddingDatabase.AddRequestToEmbeddingDatabaseAsync(
-             requestId: "1000",
-             theRequest: "a sample message",
-             embed: true
-             );
+            //await _feedbackEmbeddingDatabase.AddRequestToEmbeddingDatabaseAsync(
+            // requestId: "1000",
+            // theRequest: "a sample message",
+            // embed: true
+            // );
 
-            await _feedbackEmbeddingDatabase.UpdateTextResponse(
-                requestId: "1000",
-                message: "a sample response",
-                embed: true
-                );
+            //await _feedbackEmbeddingDatabase.UpdateTextResponse(
+            //    requestId: "1000",
+            //    message: "a sample response",
+            //    embed: true
+            //    );
 
 
-            await LoadConversationHistory();
+            //   await LoadConversationHistory();
 
-            var msg = FormatRelevantFeedback();
+            //var msg = await FormatRelevantFeedback();
 
-            Debug.WriteLine($"{msg}");
+            //Debug.WriteLine($"\n\n\n\n{msg}");
 
 
         }
 
-        private async Task<string> FormatRelevantFeedback(string userRequest = "sample message", int topK = 3, int minWordsToTriggerLsh = 1)
+        private async Task<string> FormatRelevantFeedback(string query, int topK = 30, int minWordsToTriggerLsh = 1)
         {
             var sb = new StringBuilder();
 
-            if (CountWords(userRequest) > minWordsToTriggerLsh)
-            {
+            //if (CountWords(query) > minWordsToTriggerLsh)
+            //{
                 List<FeedbackDatabaseValues> results = await _feedbackEmbeddingDatabase.SearchEmbeddingsAsync(
-                    searchText: userRequest,
-                    topK: topK,
-                    // minimumSimilarity: 0.75f,
-                    minimumSimilarity: 0.05f,
-                    searchLevel: 2
-                    );
+                searchText: query,
+                topK: topK,
+              //  minimumSimilarity: 0.05f,
+                  minimumSimilarity: 0.00f,
+                searchLevel: 2
+                );
 
                 void AppendSection(StringBuilder sb, string title, string? content)
                 {
@@ -76,44 +76,54 @@ namespace DemoApp
                 // string truncatedMessage = $"Long messages are truncated for efficiency, use the
                 // 'request_full_content' tool with the Request ID to full content.";
 
-                if (!string.IsNullOrEmpty(userRequest) && results.Count > 0)
-                {
+              //  if (!string.IsNullOrEmpty(query) && results.Count > 0)
+               // {
                     sb.AppendLine($"# Here is a list of potentially relevant feedback from the RAG for you to consider when formulating your response.");
                     sb.AppendLine(@"Note: Similarity scores are guides, not gospel. Evaluate actual relevance and usefulness of returned content, regardless of numerical scores.");
                     // sb.AppendLine(@"Attention: Long responses will be truncated, but soon you
                     // will be able to request the complete response if you need to.");
                     foreach (var (result, index) in sortedResults.Select((result, index) => (result, index + 1)))
                     {
-                        sb.AppendLine($"\nResults: {index} - Similarity {result.Similarity:F5}");
+                
+                    AppendSection(sb, "Users Request", result.Request);
+                
+                    sb.AppendLine().AppendLine($"Results: {index} - Similarity {result.Similarity:F5}");
                         //.AppendLine($"# Similarity #\n{result.Similarity:F5}");
 
                         // AppendSection(sb, "Request ID", result.RequestID);
                         //AppendSection(sb, "Rating", result.Rating?.ToString() ?? "0");
-                        if (!string.IsNullOrEmpty(result.Request)) AppendSection(sb, "Users Request", result.Request);
+                       // if (!string.IsNullOrEmpty(result.Request)) 
+                    AppendSection(sb, "Users Request", result.Request);
 
-                        if (!string.IsNullOrEmpty(result.TextResponse)) AppendSection(sb, "AI text Response", GetTruncatedText(result.TextResponse, 3000));
+                       // if (!string.IsNullOrEmpty(result.TextResponse)) 
+                    AppendSection(sb, "AI text Response", GetTruncatedText(result.TextResponse, 3000));
 
-                        if (!string.IsNullOrEmpty(result.ToolUseTextResponse)) AppendSection(sb, "AI Tool Use TextResponse", GetTruncatedText(result.ToolUseTextResponse, 3000));
+                       // if (!string.IsNullOrEmpty(result.ToolUseTextResponse)) 
+                    AppendSection(sb, "AI Tool Use TextResponse", GetTruncatedText(result.ToolUseTextResponse, 3000));
 
                         //AppendSection(sb, "Tool Content", GetTruncatedText(result.ToolContent, 300));
                     }
 
                     sb.AppendLine($"User Request:");
                     sb.AppendLine();
-                }
+                //}
 
-                sb.AppendLine($"{userRequest}");
-            }
-            else
-            {
-                sb.Append($"{userRequest}");
-            }
+                //sb.AppendLine($"{query}");
+            //}
+            //else
+            //{
+            //    sb.Append($"{query}");
+           // }
+
+
+
+
             return sb.ToString();
         }
 
         private async Task LoadConversationHistory(int maxMsgCount = 10, bool showToolInputs = true, bool removeToolMessages = true)
         {
- 
+
 
             try
             {
@@ -135,12 +145,12 @@ namespace DemoApp
 
                     }
                 }
- 
- 
+
+
             }
             catch (Exception ex)
             {
- 
+
             }
         }
 
@@ -160,5 +170,19 @@ namespace DemoApp
 
             return text.Substring(0, maxLength) + "... " + truncationMessage;
         }
+
+        private async void btnSearch_Click(object sender, EventArgs e)
+        {
+
+            var msg = await FormatRelevantFeedback(txtQuery.Text);
+
+            txtResult.Text = msg;
+
+        }
+
+
+
+
+
     }
 }
