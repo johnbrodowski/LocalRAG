@@ -40,6 +40,7 @@ dotnet restore
 
 3. Download a BERT model in ONNX format:
    - Visit [Hugging Face ONNX Models](https://huggingface.co/models?library=onnx&search=bert)
+   - Models under Apache 2.0; see Hugging Face for details
    - Download a BERT model (e.g., `bert-base-uncased` or `bert-large-uncased`)
    - Place the `.onnx` file in the `onnxBERT/` directory
    - Download the corresponding `vocab.txt` file
