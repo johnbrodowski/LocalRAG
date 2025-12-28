@@ -1,3 +1,6 @@
+# About this code
+This example was extracted from AGPA — my fully autonomous general-purpose agent (closed-source, ~150k LOC).
+
 # LocalRAG
 
 A local Retrieval-Augmented Generation (RAG) system for .NET that uses BERT embeddings and multiple search strategies for efficient semantic search and information retrieval.
