@@ -670,15 +670,28 @@ END;
             bool anyUpdated = false;
             var updates = new Dictionary<string, string>();
 
+            // Debug: Log what we're working with
+            Debug.WriteLine($"Processing record {record.RequestID}:");
+            Debug.WriteLine($"  - Request: {(string.IsNullOrEmpty(record.Request) ? "EMPTY" : $"{record.Request.Length} chars")}");
+            Debug.WriteLine($"  - TextResponse: {(string.IsNullOrEmpty(record.TextResponse) ? "EMPTY" : $"{record.TextResponse.Length} chars")}");
+            Debug.WriteLine($"  - RequestEmbedding: {(record.RequestEmbedding == null ? "NULL" : $"{record.RequestEmbedding.Length} dims")}");
+            Debug.WriteLine($"  - ReplaceExisting: {replaceExisting}");
+
             // Regenerate Request embedding
             if (!string.IsNullOrEmpty(record.Request) &&
                 (replaceExisting || record.RequestEmbedding == null))
             {
+                Debug.WriteLine($"  -> Generating Request embedding...");
                 var embedding = await _embedder.TryGetEmbeddingsAsync(record.Request);
                 if (embedding != null)
                 {
+                    Debug.WriteLine($"  -> Got embedding with {embedding.Length} dimensions");
                     updates["RequestEmbedding"] = JsonConvert.SerializeObject(embedding);
                     anyUpdated = true;
+                }
+                else
+                {
+                    Debug.WriteLine($"  -> Embedding returned NULL");
                 }
 
                 var embeddingList = await TryGetEmbeddingListAsync(record.Request);
@@ -686,6 +699,10 @@ END;
                 {
                     updates["RequestEmbeddingList"] = JsonConvert.SerializeObject(embeddingList);
                 }
+            }
+            else
+            {
+                Debug.WriteLine($"  -> SKIPPING Request (empty or already has embedding)");
             }
 
             // Regenerate TextResponse embedding
@@ -745,9 +762,16 @@ END;
             // Apply updates if any
             if (updates.Count > 0)
             {
+                Debug.WriteLine($"  -> Saving {updates.Count} embedding updates to database...");
                 await UpdateEmbeddingColumnsAsync(record.RequestID!, updates);
+                Debug.WriteLine($"  -> Database update complete");
+            }
+            else
+            {
+                Debug.WriteLine($"  -> No updates to save");
             }
 
+            Debug.WriteLine($"  -> Record complete. anyUpdated={anyUpdated}");
             return anyUpdated;
         }
 
