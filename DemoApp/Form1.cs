@@ -1,4 +1,8 @@
+using Azure.Core;
+
 using LocalRAG;
+
+using Microsoft.ML.OnnxRuntimeGenAI;
 
 using System.Diagnostics;
 using System.Text;
@@ -7,7 +11,7 @@ namespace DemoApp
 {
     public partial class Form1 : Form
     {
-        private EmbeddingDatabaseNew _feedbackEmbeddingDatabase;
+        private EmbeddingDatabaseNew db;
 
         private string _currentRequest = string.Empty;
 
@@ -18,8 +22,73 @@ namespace DemoApp
 
         private async void Form1_Load(object sender, EventArgs e)
         {
-            _feedbackEmbeddingDatabase = new EmbeddingDatabaseNew(new RAGConfiguration());
-           // await Test();
+            var config = new RAGConfiguration
+            {
+                DatabasePath = "Database/Memory/FreshEmbeddings.db"  // New file
+            };
+
+            var db = new EmbeddingDatabaseNew(config);
+
+            // Option 1: Generate mock data WITH embeddings (will use CPU/RAM)
+            //await db.PopulateWithMockDataAsync(
+            //    count: 50,
+            //    generateEmbeddings: true,
+            //    progress: (done, total) => Debug.WriteLine($"[{done}/{total}]")
+            //);
+
+            // Option 2: Generate mock data WITHOUT embeddings first (fast)
+            //await db.PopulateWithMockDataAsync(count: 50, generateEmbeddings: false);
+            // Then backfill separately
+            await db.BackfillEmbeddingsAsync("all");
+
+            // Check stats
+            var stats = await db.GetStatsAsync();
+            Debug.WriteLine(stats);
+            // Output: Records: 50 total, 50 with embeddings, 0 missing
+            //         LSH: 10 buckets, 150 entries
+
+            // If you need to start over
+           // await db.ClearAllDataAsync();
+
+
+
+
+
+
+
+
+
+            // Option 1: Only fill missing embeddings (fastest, keeps existing)
+            //var result1 = await db.BackfillEmbeddingsAsync("missing");
+            //Debug.WriteLine($"Missing:{result1}\n\n");
+
+
+
+
+            // Option 2: Replace ALL embeddings (use this since old ones are bad)
+            //var result2 = await db.BackfillEmbeddingsAsync("all");
+            //Debug.WriteLine($"All:{result2}\n\n");
+
+            // Option 3: With progress tracking
+            //var result3 = await db.BackfillEmbeddingsAsync(
+            //    mode: "missing",
+            //    batchSize: 2,
+            //    progress: (processed, total, requestId) =>
+            //    {
+            //        Debug.WriteLine($"[{processed}/{total}] Processing: {requestId}");
+            //    }
+            //);
+
+            // Option 4: With cancellation support
+            //var cts = new CancellationTokenSource();
+            //var result4 = await db.BackfillEmbeddingsAsync("\n\nAll w/CancellationToken", cancellationToken: cts.Token);
+
+            //// Check results
+            //Debug.WriteLine(result4);
+            // Output: "Backfill: 150/200 succeeded, 2 failed, 48 skipped in 45.3s"
+ 
+
+            // await Test();
         }
 
         private async Task Test()
@@ -52,7 +121,7 @@ namespace DemoApp
 
             //if (CountWords(query) > minWordsToTriggerLsh)
             //{
-                List<FeedbackDatabaseValues> results = await _feedbackEmbeddingDatabase.SearchEmbeddingsAsync(
+                List<FeedbackDatabaseValues> results = await db.SearchEmbeddingsAsync(
                 searchText: query,
                 topK: topK,
               //  minimumSimilarity: 0.05f,
@@ -129,7 +198,7 @@ namespace DemoApp
             {
                 List<(string request, string textResponse, string toolUseTextResponse, string toolContent, string toolResult, string requestID)> recentHistory =
 
-                await _feedbackEmbeddingDatabase.GetConversationHistoryAsync(maxMsgCount);
+                await db.GetConversationHistoryAsync(maxMsgCount);
 
                 foreach (var (request, textResponse, toolUseTextResponse, toolContent, toolResult, requestId) in recentHistory)
                 {
