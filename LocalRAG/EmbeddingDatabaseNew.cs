@@ -961,6 +961,209 @@ END;
 
         #endregion
 
+        #region Mock Data Generation
+
+        /// <summary>
+        /// Populates the database with mock conversation data for testing.
+        /// </summary>
+        /// <param name="count">Number of mock conversations to generate</param>
+        /// <param name="generateEmbeddings">Whether to generate embeddings for the mock data</param>
+        /// <param name="progress">Optional progress callback</param>
+        public async Task<int> PopulateWithMockDataAsync(
+            int count = 50,
+            bool generateEmbeddings = true,
+            Action<int, int>? progress = null)
+        {
+            LogMessage($"Generating {count} mock conversations...");
+            var mockData = GenerateMockConversations(count);
+            int created = 0;
+
+            foreach (var data in mockData)
+            {
+                try
+                {
+                    await AddDataToEmbeddingDatabaseAsync(data);
+                    created++;
+                    progress?.Invoke(created, count);
+                }
+                catch (Exception ex)
+                {
+                    LogMessage($"Error creating mock record: {ex.Message}");
+                }
+            }
+
+            LogMessage($"Created {created} mock records");
+            return created;
+        }
+
+        /// <summary>
+        /// Generates a list of mock conversation data
+        /// </summary>
+        private List<FeedbackDatabaseValues> GenerateMockConversations(int count)
+        {
+            var conversations = new List<FeedbackDatabaseValues>();
+            var random = new Random();
+
+            // Programming topics for realistic RAG testing
+            var programmingQuestions = new[]
+            {
+                ("How do I read a file in C#?", "You can use File.ReadAllText() or StreamReader to read files in C#. For async operations, use File.ReadAllTextAsync(). Example: string content = await File.ReadAllTextAsync(\"path/to/file.txt\");"),
+                ("What is dependency injection?", "Dependency Injection (DI) is a design pattern where objects receive their dependencies from external sources rather than creating them internally. This promotes loose coupling and makes code more testable. In .NET, you can use the built-in IServiceCollection."),
+                ("Explain async await in C#", "Async/await is a pattern for asynchronous programming. The async keyword marks a method as asynchronous, and await pauses execution until the awaited task completes without blocking the thread. This improves application responsiveness."),
+                ("How to connect to a database?", "Use ADO.NET with SqlConnection or an ORM like Entity Framework. Example: using var connection = new SqlConnection(connectionString); await connection.OpenAsync(); Then execute commands with SqlCommand."),
+                ("What is LINQ?", "LINQ (Language Integrated Query) provides a consistent query syntax for collections, databases, and XML. It includes methods like Where(), Select(), OrderBy(), and GroupBy(). Example: var results = list.Where(x => x.Age > 18).ToList();"),
+                ("How to handle exceptions?", "Use try-catch-finally blocks. Catch specific exceptions before general ones. Use 'throw;' to rethrow without losing stack trace. Consider using custom exception types for domain-specific errors."),
+                ("What are generics in C#?", "Generics allow you to write type-safe code that works with any data type. Use angle brackets: List<T>, Dictionary<TKey, TValue>. They provide compile-time type checking and avoid boxing/unboxing overhead."),
+                ("How to use Entity Framework?", "Install Microsoft.EntityFrameworkCore, create a DbContext with DbSet properties for your entities, configure the connection string, and use methods like Add(), SaveChanges(), and LINQ queries to interact with the database."),
+                ("What is the difference between interface and abstract class?", "Interfaces define contracts with no implementation (until C# 8 default methods). Abstract classes can have implementation and state. A class can implement multiple interfaces but inherit only one class. Use interfaces for 'can-do' relationships."),
+                ("How to create a REST API?", "Use ASP.NET Core Web API. Create controllers inheriting from ControllerBase, decorate with [ApiController] and [Route] attributes. Use [HttpGet], [HttpPost], etc. for endpoints. Return ActionResult<T> for proper HTTP responses."),
+                ("What is middleware in ASP.NET?", "Middleware are components that handle HTTP requests/responses in a pipeline. Each middleware can process the request, pass it to the next component, and optionally process the response. Common examples: authentication, logging, exception handling."),
+                ("How to implement caching?", "Use IMemoryCache for in-memory caching or IDistributedCache for distributed scenarios (Redis, SQL Server). Implement cache-aside pattern: check cache first, fetch from source if missing, store in cache. Set appropriate expiration policies."),
+                ("What is the repository pattern?", "Repository pattern abstracts data access logic into separate classes. It provides a collection-like interface for accessing domain objects. Benefits: testability, separation of concerns, swappable data sources. Often used with Unit of Work pattern."),
+                ("How to write unit tests?", "Use a testing framework like xUnit, NUnit, or MSTest. Structure tests with Arrange-Act-Assert pattern. Use mocking libraries like Moq for dependencies. Aim for high code coverage but focus on meaningful tests."),
+                ("What is SignalR?", "SignalR is a library for real-time web functionality. It enables server-side code to push content to clients instantly. Uses WebSockets when available, falls back to other techniques. Great for chat apps, live dashboards, notifications."),
+            };
+
+            var toolOperations = new[]
+            {
+                ("file_read", "Reading file: /src/Program.cs", "public class Program { public static void Main() { Console.WriteLine(\"Hello\"); } }"),
+                ("file_write", "Writing to: /src/NewClass.cs", "File written successfully. 45 bytes written."),
+                ("terminal", "Executing: dotnet build", "Build succeeded. 0 Warning(s) 0 Error(s) Time Elapsed 00:00:02.34"),
+                ("terminal", "Executing: dotnet test", "Passed! - Failed: 0, Passed: 23, Skipped: 0, Total: 23"),
+                ("search", "Searching for: async methods", "Found 15 matches in 8 files"),
+                ("git", "git status", "On branch main. Changes not staged for commit: modified: src/Service.cs"),
+                ("database", "SELECT * FROM Users WHERE Active = 1", "Returned 42 rows in 0.023 seconds"),
+                ("api_call", "GET https://api.example.com/data", "Status: 200 OK. Response: {\"success\": true, \"count\": 100}"),
+            };
+
+            var summaries = new[]
+            {
+                "Explained file reading operations in C# with examples",
+                "Discussed dependency injection principles and .NET implementation",
+                "Covered async/await patterns for non-blocking operations",
+                "Demonstrated database connectivity options",
+                "Explained LINQ query syntax and common operations",
+                "Reviewed exception handling best practices",
+                "Introduced generics for type-safe collections",
+                "Walked through Entity Framework setup and usage",
+                "Compared interfaces vs abstract classes",
+                "Created REST API endpoints with ASP.NET Core",
+            };
+
+            for (int i = 0; i < count; i++)
+            {
+                var questionPair = programmingQuestions[random.Next(programmingQuestions.Length)];
+                var hasToolUse = random.NextDouble() > 0.5;
+                var hasSummary = random.NextDouble() > 0.3;
+
+                var data = new FeedbackDatabaseValues
+                {
+                    RequestID = Guid.NewGuid().ToString(),
+                    UserMessageType = "text",
+                    AssistantMessageType = hasToolUse ? "tool_use" : "text",
+                    Request = questionPair.Item1 + (random.NextDouble() > 0.7 ? " Please provide an example." : ""),
+                    TextResponse = questionPair.Item2,
+                    Rating = random.Next(1, 6),
+                    Embed = generateEmbeddings,
+                    EmbedRequest = generateEmbeddings,
+                    EmbedTextResponse = generateEmbeddings,
+                    EmbedRequestList = generateEmbeddings,
+                    EmbedTextResponseList = generateEmbeddings,
+                };
+
+                if (hasToolUse)
+                {
+                    var tool = toolOperations[random.Next(toolOperations.Length)];
+                    data.ToolName = tool.Item1;
+                    data.ToolContent = tool.Item2;
+                    data.ToolResult = tool.Item3;
+                    data.ToolUseTextResponse = $"I'll use the {tool.Item1} tool to help with this. {tool.Item2}";
+                    data.EmbedToolUseTextResponse = generateEmbeddings;
+                    data.EmbedToolUseTextResponseList = generateEmbeddings;
+                }
+
+                if (hasSummary)
+                {
+                    data.Summary = summaries[random.Next(summaries.Length)];
+                    data.EmbedSummary = generateEmbeddings;
+                    data.EmbedSummaryList = generateEmbeddings;
+                }
+
+                conversations.Add(data);
+            }
+
+            return conversations;
+        }
+
+        /// <summary>
+        /// Clears all data from the embeddings table (use with caution!)
+        /// </summary>
+        public async Task ClearAllDataAsync()
+        {
+            LogMessage("Clearing all embedding data...");
+
+            using var connection = await GetConnectionAsync();
+            using var command = new SqliteCommand("DELETE FROM embeddings", connection);
+            var deleted = await command.ExecuteNonQueryAsync();
+
+            // Clear LSH tables
+            foreach (var hashTable in _hashTables)
+            {
+                hashTable.Clear();
+            }
+
+            // Clear cache
+            _cache.Clear();
+
+            LogMessage($"Deleted {deleted} records");
+        }
+
+        /// <summary>
+        /// Gets database statistics
+        /// </summary>
+        public async Task<DatabaseStats> GetStatsAsync()
+        {
+            var stats = new DatabaseStats();
+
+            using var connection = await GetConnectionAsync();
+
+            // Total records
+            using (var cmd = new SqliteCommand("SELECT COUNT(*) FROM embeddings", connection))
+            {
+                stats.TotalRecords = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+            }
+
+            // Records with embeddings
+            using (var cmd = new SqliteCommand("SELECT COUNT(*) FROM embeddings WHERE RequestEmbedding IS NOT NULL", connection))
+            {
+                stats.RecordsWithEmbeddings = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+            }
+
+            // Records missing embeddings
+            stats.RecordsMissingEmbeddings = stats.TotalRecords - stats.RecordsWithEmbeddings;
+
+            // LSH bucket stats
+            stats.TotalLSHBuckets = _hashTables.Sum(t => t.Count);
+            stats.TotalLSHEntries = _hashTables.Sum(t => t.Values.Sum(b => b.Count));
+
+            return stats;
+        }
+
+        public class DatabaseStats
+        {
+            public int TotalRecords { get; set; }
+            public int RecordsWithEmbeddings { get; set; }
+            public int RecordsMissingEmbeddings { get; set; }
+            public int TotalLSHBuckets { get; set; }
+            public int TotalLSHEntries { get; set; }
+
+            public override string ToString() =>
+                $"Records: {TotalRecords} total, {RecordsWithEmbeddings} with embeddings, {RecordsMissingEmbeddings} missing\n" +
+                $"LSH: {TotalLSHBuckets} buckets, {TotalLSHEntries} entries";
+        }
+
+        #endregion
+
         #region Internal - Data Operations
 
         private async Task AddDataToEmbeddingDatabaseAsync(FeedbackDatabaseValues data)
