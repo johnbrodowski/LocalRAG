@@ -28,6 +28,10 @@ namespace LocalRAG
         private Task _processingTask;
         private bool _isDisposing;
 
+        // BERT embedding dimension: 768 for base, 1024 for large
+        // This should match the actual model output dimension
+        private const int EmbeddingDimension = 768;
+
         // Column ordinals for reader optimization
         private int _idIndex;
         private int _requestIdIndex;
@@ -197,8 +201,10 @@ END;
                 var tableFunctions = new List<float[]>();
                 for (int j = 0; j < _config.NumberOfHashFunctions; j++)
                 {
-                    var vector = new float[_config.MaxSequenceLength];
-                    for (int k = 0; k < _config.MaxSequenceLength; k++)
+                    // IMPORTANT: Use EmbeddingDimension (768/1024), NOT MaxSequenceLength (512)
+                    // MaxSequenceLength is the token count, EmbeddingDimension is the vector size
+                    var vector = new float[EmbeddingDimension];
+                    for (int k = 0; k < EmbeddingDimension; k++)
                     {
                         // Box-Muller transform for Gaussian random numbers
                         double u1 = 1.0 - random.NextDouble();
@@ -999,8 +1005,11 @@ FROM embeddings WHERE RequestID = @RequestID";
 
             documentText = documentText.ToLower();
             var docWords = documentText.Split(new[] { ' ', '.', ',', ';', ':', '!', '?' }, StringSplitOptions.RemoveEmptyEntries);
+            var docWordSet = new HashSet<string>(docWords, StringComparer.OrdinalIgnoreCase);
 
-            int matchedWords = searchWords.Count(word => documentText.Contains(word));
+            // Use word boundary matching instead of substring contains
+            // This prevents "the" matching in "brother", "together", etc.
+            int matchedWords = searchWords.Count(word => docWordSet.Contains(word));
             double baseScore = (double)matchedWords / searchWords.Length;
 
             double phraseMatchBonus = documentText.Contains(string.Join(" ", searchWords)) ? 0.2 : 0;

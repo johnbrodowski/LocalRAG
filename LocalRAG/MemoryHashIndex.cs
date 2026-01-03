@@ -14,11 +14,14 @@ namespace LocalRAG
 {
     public class MemoryHashIndex : IDisposable
     {
-        // Core storage
-        private readonly ConcurrentDictionary<string, byte[]> _vectorHashes;
+        // Core storage - store actual vectors for cosine similarity
+        private readonly ConcurrentDictionary<string, float[]> _vectors;
         private readonly ConcurrentDictionary<string, HashMetadata> _hashMetadata;
         private readonly ConcurrentDictionary<int, HashSet<string>> _hashBuckets;
         private readonly MemoryCache _cache;
+
+        // LSH: Random hyperplanes for locality-sensitive hashing
+        private readonly float[][] _hyperplanes;
 
         // Configuration
         private readonly MemoryHashOptions _options;
@@ -60,17 +63,49 @@ namespace LocalRAG
             public double SimilarityThreshold { get; set; } = 0.75;
         }
 
+        // Default embedding dimension for BERT base model
+        private const int DefaultEmbeddingDimension = 768;
+
         public MemoryHashIndex(MemoryHashOptions options = null, ILogger logger = null)
         {
             _options = options ?? new MemoryHashOptions();
             _logger = logger;
-            _vectorHashes = new ConcurrentDictionary<string, byte[]>();
+            _vectors = new ConcurrentDictionary<string, float[]>();
             _hashMetadata = new ConcurrentDictionary<string, HashMetadata>();
             _hashBuckets = new ConcurrentDictionary<int, HashSet<string>>();
             _cache = new MemoryCache(new MemoryCacheOptions());
             _processLock = new SemaphoreSlim(1, 1);
 
+            // Initialize random hyperplanes for LSH
+            // Each hyperplane is used to partition the vector space
+            _hyperplanes = InitializeHyperplanes(_options.NumHashFunctions, DefaultEmbeddingDimension);
+
             InitializeBuckets();
+        }
+
+        /// <summary>
+        /// Initializes random hyperplanes for LSH (Locality Sensitive Hashing).
+        /// For cosine similarity, we use random hyperplane method where vectors
+        /// on the same side of a hyperplane get the same bit.
+        /// </summary>
+        private float[][] InitializeHyperplanes(int numHyperplanes, int dimension)
+        {
+            var random = new Random(42); // Fixed seed for reproducibility
+            var hyperplanes = new float[numHyperplanes][];
+
+            for (int i = 0; i < numHyperplanes; i++)
+            {
+                hyperplanes[i] = new float[dimension];
+                for (int j = 0; j < dimension; j++)
+                {
+                    // Generate random Gaussian values using Box-Muller transform
+                    double u1 = 1.0 - random.NextDouble();
+                    double u2 = 1.0 - random.NextDouble();
+                    hyperplanes[i][j] = (float)(Math.Sqrt(-2.0 * Math.Log(u1)) * Math.Sin(2.0 * Math.PI * u2));
+                }
+            }
+
+            return hyperplanes;
         }
 
         private void InitializeBuckets()
@@ -81,22 +116,34 @@ namespace LocalRAG
             }
         }
 
-        public async Task<byte[]> CreateHashAsync(float[] embedding)
+        /// <summary>
+        /// Computes LSH hash using random hyperplane method.
+        /// Each bit represents which side of a hyperplane the vector falls on.
+        /// Similar vectors will have similar hash codes (high probability of same bits).
+        /// </summary>
+        public int ComputeLSHHash(float[] embedding)
         {
-            await _processLock.WaitAsync();
-            try
+            int hash = 0;
+            int minLen = Math.Min(embedding.Length, DefaultEmbeddingDimension);
+
+            for (int i = 0; i < _hyperplanes.Length; i++)
             {
-                using var sha256 = SHA256.Create();
-                var bytes = new byte[embedding.Length * sizeof(float)];
-                Buffer.BlockCopy(embedding, 0, bytes, 0, bytes.Length);
-                var hash = sha256.ComputeHash(bytes).Take(_options.HashSize).ToArray();
-                Debug.WriteLine($"Created hash: {BitConverter.ToString(hash)}"); // Add this
-                return hash;
+                // Compute dot product with hyperplane
+                double dotProduct = 0;
+                for (int j = 0; j < minLen; j++)
+                {
+                    dotProduct += embedding[j] * _hyperplanes[i][j];
+                }
+
+                // Set bit based on sign of dot product
+                if (dotProduct >= 0)
+                {
+                    hash |= (1 << i);
+                }
             }
-            finally
-            {
-                _processLock.Release();
-            }
+
+            Debug.WriteLine($"Computed LSH hash: {hash}");
+            return hash;
         }
 
 
@@ -106,31 +153,29 @@ namespace LocalRAG
         {
             try
             {
-                var hash = await CreateHashAsync(vector);
+                // Store the actual vector for cosine similarity calculation
+                _vectors[id] = vector;
+
+                var lshHash = ComputeLSHHash(vector);
                 var metadata = new HashMetadata
                 {
                     Id = id,
                     Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-                    Hash = hash,
+                    Hash = BitConverter.GetBytes(lshHash), // Store LSH hash for reference
                     Keywords = ExtractKeywords(tags),
                     Tags = tags ?? new Dictionary<string, string>(),
                     Type = type,
                     Version = 1
                 };
 
-                _vectorHashes[id] = hash;
                 _hashMetadata[id] = metadata;
 
+                // Use LSH hash to determine bucket
+                int bucketIndex = Math.Abs(lshHash % _options.NumBuckets);
+                Debug.WriteLine($"Adding vector for ID: {id}");
+                Debug.WriteLine($"LSH hash: {lshHash}, bucket: {bucketIndex}");
 
-                var bucketIndices = GetBucketIndices(hash);
-                Debug.WriteLine($"Adding vector for ID: {id}"); // Add debug
-                Debug.WriteLine($"Bucket indices: {string.Join(", ", bucketIndices)}"); // Add debug
-
-                foreach (var bucketIndex in bucketIndices)
-                {
-                    _hashBuckets[bucketIndex].Add(id);
-                    Debug.WriteLine($"Added ID {id} to bucket {bucketIndex}"); // Add debug
-                }
+                _hashBuckets[bucketIndex].Add(id);
 
                 await PruneIfNeededAsync();
                 return true;
@@ -142,29 +187,42 @@ namespace LocalRAG
             }
         }
 
-        public async Task<List<SearchResult>> SearchAsync(float[] queryVector, int topK , ContentType? filterType = null)
+        public async Task<List<SearchResult>> SearchAsync(float[] queryVector, int topK, ContentType? filterType = null)
         {
- 
-            var queryHash = await CreateHashAsync(queryVector);
             var candidates = new ConcurrentDictionary<string, double>();
-            var bucketIndices = GetBucketIndices(queryHash);
 
-            Debug.WriteLine($"Bucket indices: {string.Join(", ", bucketIndices)}");
+            // Use LSH to find candidate bucket
+            var queryLSHHash = ComputeLSHHash(queryVector);
+            int primaryBucket = Math.Abs(queryLSHHash % _options.NumBuckets);
+
+            // Also check neighboring buckets (LSH can have collisions)
+            var bucketsToSearch = new HashSet<int> { primaryBucket };
+
+            // Add nearby buckets for better recall
+            bucketsToSearch.Add((primaryBucket + 1) % _options.NumBuckets);
+            bucketsToSearch.Add((primaryBucket - 1 + _options.NumBuckets) % _options.NumBuckets);
+
+            Debug.WriteLine($"Query LSH hash: {queryLSHHash}, searching buckets: {string.Join(", ", bucketsToSearch)}");
             Debug.WriteLine($"Total buckets: {_hashBuckets.Count}");
 
-            foreach (var bucketIndex in bucketIndices)
+            foreach (var bucketIndex in bucketsToSearch)
             {
-                Debug.WriteLine($"Bucket {bucketIndex} has {_hashBuckets[bucketIndex].Count} items");
+                if (!_hashBuckets.TryGetValue(bucketIndex, out var bucket))
+                    continue;
 
-                foreach (var id in _hashBuckets[bucketIndex])
+                Debug.WriteLine($"Bucket {bucketIndex} has {bucket.Count} items");
+
+                foreach (var id in bucket)
                 {
-                    if (_vectorHashes.TryGetValue(id, out var hash))
+                    // Calculate ACTUAL cosine similarity using stored vectors
+                    if (_vectors.TryGetValue(id, out var storedVector))
                     {
-                        var similarity = CalculateHashSimilarity(queryHash, hash);
-                        Debug.WriteLine($"ID: {id}, Similarity: {similarity}, Threshold: {_options.SimilarityThreshold}");
+                        var similarity = CalculateCosineSimilarity(queryVector, storedVector);
+                        Debug.WriteLine($"ID: {id}, Cosine Similarity: {similarity:F4}, Threshold: {_options.SimilarityThreshold}");
+
                         if (similarity >= _options.SimilarityThreshold)
                         {
-                            Debug.WriteLine($"Adding to candidates"); // Add this
+                            Debug.WriteLine($"Adding to candidates");
                             candidates.TryAdd(id, similarity);
                         }
                     }
@@ -176,10 +234,14 @@ namespace LocalRAG
             var results = candidates
                 .OrderByDescending(x => x.Value)
                 .Take(topK)
-                .Select(x => {
+                .Select(x =>
+                {
                     Debug.WriteLine($"Creating SearchResult for ID: {x.Key}");
                     var metadata = _hashMetadata[x.Key];
-                    Debug.WriteLine($"Metadata text: {metadata.Tags["text"]}");
+                    if (metadata.Tags.TryGetValue("text", out var text))
+                    {
+                        Debug.WriteLine($"Metadata text: {text}");
+                    }
                     return new SearchResult
                     {
                         Id = x.Key,
@@ -190,18 +252,40 @@ namespace LocalRAG
                 .ToList();
 
             Debug.WriteLine($"Final results count: {results.Count}");
-            return results;
+            return await Task.FromResult(results);
+        }
 
-            //return candidates
-            //    .OrderByDescending(x => x.Value)
-            //    .Take(topK)
-            //    .Select(x => new SearchResult
-            //    {
-            //        editor_id = x.Key,
-            //        Score = x.Value,
-            //        Metadata = _hashMetadata[x.Key]
-            //    })
-            //    .ToList();
+        /// <summary>
+        /// Calculates cosine similarity between two vectors.
+        /// Returns value between -1 and 1, where 1 means identical direction.
+        /// </summary>
+        private double CalculateCosineSimilarity(float[] vectorA, float[] vectorB)
+        {
+            if (vectorA == null || vectorB == null)
+                return 0;
+
+            int minLen = Math.Min(vectorA.Length, vectorB.Length);
+            if (minLen == 0)
+                return 0;
+
+            double dotProduct = 0;
+            double magnitudeA = 0;
+            double magnitudeB = 0;
+
+            for (int i = 0; i < minLen; i++)
+            {
+                dotProduct += vectorA[i] * vectorB[i];
+                magnitudeA += vectorA[i] * vectorA[i];
+                magnitudeB += vectorB[i] * vectorB[i];
+            }
+
+            magnitudeA = Math.Sqrt(magnitudeA);
+            magnitudeB = Math.Sqrt(magnitudeB);
+
+            if (magnitudeA == 0 || magnitudeB == 0)
+                return 0;
+
+            return dotProduct / (magnitudeA * magnitudeB);
         }
 
         private HashSet<string> ExtractKeywords(Dictionary<string, string> tags)
@@ -210,54 +294,34 @@ namespace LocalRAG
             return new HashSet<string>(tags.Values.SelectMany(v => v.Split(' ', StringSplitOptions.RemoveEmptyEntries)));
         }
 
-        private int[] GetBucketIndices(byte[] hash)
-        {
-            var indices = new int[_options.NumHashFunctions];
-            for (int i = 0; i < _options.NumHashFunctions; i++)
-            {
-                // Use a consistent window of the hash for each function
-                int startIndex = (i * hash.Length) / _options.NumHashFunctions;
-                var portion = hash.Skip(startIndex).Take(4).ToArray();
-                indices[i] = Math.Abs(BitConverter.ToInt32(portion, 0) % _options.NumBuckets);
-                Debug.WriteLine($"Hash function {i}: Using bytes {startIndex}-{startIndex + 3} -> bucket {indices[i]}");
-            }
-            return indices;
-        }
-
-        private double CalculateHashSimilarity(byte[] hash1, byte[] hash2)
-        {
-            int matching = 0;
-            for (int i = 0; i < hash1.Length; i++)
-            {
-                matching += BitOperations.PopCount((uint)(hash1[i] ^ (byte.MaxValue ^ hash2[i])));
-            }
-            return (double)matching / (hash1.Length * 8);
-        }
+        // Old hash-based methods removed - using proper LSH and cosine similarity now
 
         private async Task PruneIfNeededAsync()
         {
-            if (_vectorHashes.Count > _options.MaxItems)
+            if (_vectors.Count > _options.MaxItems)
             {
                 await _processLock.WaitAsync();
                 try
                 {
                     var itemsToRemove = _hashMetadata
                         .OrderBy(x => x.Value.Timestamp)
-                        .Take(_vectorHashes.Count - (_options.MaxItems * 9 / 10))
+                        .Take(_vectors.Count - (_options.MaxItems * 9 / 10))
                         .Select(x => x.Key)
                         .ToList();
 
                     foreach (var id in itemsToRemove)
                     {
-                        _vectorHashes.TryRemove(id, out _);
+                        _vectors.TryRemove(id, out var removedVector);
                         _hashMetadata.TryRemove(id, out var metadata);
 
-                        if (metadata != null)
+                        // Remove from bucket using the vector's LSH hash
+                        if (removedVector != null)
                         {
-                            var bucketIndices = GetBucketIndices(metadata.Hash);
-                            foreach (var bucketIndex in bucketIndices)
+                            var lshHash = ComputeLSHHash(removedVector);
+                            int bucketIndex = Math.Abs(lshHash % _options.NumBuckets);
+                            if (_hashBuckets.TryGetValue(bucketIndex, out var bucket))
                             {
-                                _hashBuckets[bucketIndex].Remove(id);
+                                bucket.Remove(id);
                             }
                         }
                     }
