@@ -550,6 +550,393 @@ END;
 
         #endregion
 
+        #region Public API - Embedding Maintenance
+
+        /// <summary>
+        /// Regenerates embeddings for records in the database.
+        /// Use this after fixing embedding generation logic to update old/incorrect embeddings.
+        /// </summary>
+        /// <param name="mode">
+        /// "missing" - Only generate embeddings for records that have null embeddings
+        /// "all" - Regenerate all embeddings (replaces existing)
+        /// "both" - Same as "all", regenerates everything
+        /// </param>
+        /// <param name="batchSize">Number of records to process before yielding progress</param>
+        /// <param name="progress">Optional progress callback (processed, total, currentRequestId)</param>
+        /// <param name="cancellationToken">Cancellation token to stop the operation</param>
+        /// <returns>Summary of the backfill operation</returns>
+        public async Task<BackfillResult> BackfillEmbeddingsAsync(
+            string mode = "missing",
+            int batchSize = 10,
+            Action<int, int, string>? progress = null,
+            CancellationToken cancellationToken = default)
+        {
+            var result = new BackfillResult();
+            var stopwatch = Stopwatch.StartNew();
+
+            bool replaceExisting = mode.ToLower() is "all" or "both" or "replace";
+
+            LogMessage($"Starting embedding backfill - Mode: {mode}, ReplaceExisting: {replaceExisting}");
+
+            // Get all records that need processing
+            var recordsToProcess = await GetRecordsForBackfillAsync(replaceExisting);
+            result.TotalRecords = recordsToProcess.Count;
+
+            LogMessage($"Found {result.TotalRecords} records to process");
+
+            foreach (var record in recordsToProcess)
+            {
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    result.WasCancelled = true;
+                    break;
+                }
+
+                try
+                {
+                    var updated = await RegenerateEmbeddingsForRecordAsync(record, replaceExisting);
+
+                    if (updated)
+                    {
+                        result.SuccessCount++;
+                        // Clear LSH tables for this record and re-add
+                        await RebuildLSHForRecordAsync(record.Id);
+                    }
+                    else
+                    {
+                        result.SkippedCount++;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    result.FailedCount++;
+                    result.Errors.Add($"RequestID {record.RequestID}: {ex.Message}");
+                    LogMessage($"Error processing {record.RequestID}: {ex.Message}");
+                }
+
+                result.ProcessedCount++;
+                progress?.Invoke(result.ProcessedCount, result.TotalRecords, record.RequestID ?? "unknown");
+
+                // Yield occasionally to prevent blocking
+                if (result.ProcessedCount % batchSize == 0)
+                {
+                    await Task.Delay(10, cancellationToken);
+                }
+            }
+
+            stopwatch.Stop();
+            result.ElapsedTime = stopwatch.Elapsed;
+
+            LogMessage($"Backfill complete - Processed: {result.ProcessedCount}, Success: {result.SuccessCount}, " +
+                      $"Failed: {result.FailedCount}, Skipped: {result.SkippedCount}, Time: {result.ElapsedTime}");
+
+            return result;
+        }
+
+        /// <summary>
+        /// Gets records that need embedding regeneration
+        /// </summary>
+        private async Task<List<FeedbackDatabaseValues>> GetRecordsForBackfillAsync(bool includeExisting)
+        {
+            var records = new List<FeedbackDatabaseValues>();
+
+            string query = includeExisting
+                ? "SELECT * FROM embeddings ORDER BY Id"
+                : @"SELECT * FROM embeddings
+                    WHERE RequestEmbedding IS NULL
+                       OR TextResponseEmbedding IS NULL
+                       OR (TextResponse IS NOT NULL AND TextResponseEmbedding IS NULL)
+                       OR (ToolUseTextResponse IS NOT NULL AND ToolUseTextResponseEmbedding IS NULL)
+                       OR (Summary IS NOT NULL AND SummaryEmbedding IS NULL)
+                    ORDER BY Id";
+
+            using var connection = await GetConnectionAsync();
+            using var command = new SqliteCommand(query, connection);
+
+            using var reader = await command.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                records.Add(ReadFeedbackFromReader(reader));
+            }
+
+            return records;
+        }
+
+        /// <summary>
+        /// Regenerates embeddings for a single record
+        /// </summary>
+        private async Task<bool> RegenerateEmbeddingsForRecordAsync(FeedbackDatabaseValues record, bool replaceExisting)
+        {
+            bool anyUpdated = false;
+            var updates = new Dictionary<string, string>();
+
+            // Regenerate Request embedding
+            if (!string.IsNullOrEmpty(record.Request) &&
+                (replaceExisting || record.RequestEmbedding == null))
+            {
+                var embedding = await _embedder.TryGetEmbeddingsAsync(record.Request);
+                if (embedding != null)
+                {
+                    updates["RequestEmbedding"] = JsonConvert.SerializeObject(embedding);
+                    anyUpdated = true;
+                }
+
+                var embeddingList = await TryGetEmbeddingListAsync(record.Request);
+                if (embeddingList != null)
+                {
+                    updates["RequestEmbeddingList"] = JsonConvert.SerializeObject(embeddingList);
+                }
+            }
+
+            // Regenerate TextResponse embedding
+            if (!string.IsNullOrEmpty(record.TextResponse) &&
+                (replaceExisting || record.TextResponseEmbedding == null))
+            {
+                var embedding = await _embedder.TryGetEmbeddingsAsync(record.TextResponse);
+                if (embedding != null)
+                {
+                    updates["TextResponseEmbedding"] = JsonConvert.SerializeObject(embedding);
+                    anyUpdated = true;
+                }
+
+                var embeddingList = await TryGetEmbeddingListAsync(record.TextResponse);
+                if (embeddingList != null)
+                {
+                    updates["TextResponseEmbeddingList"] = JsonConvert.SerializeObject(embeddingList);
+                }
+            }
+
+            // Regenerate ToolUseTextResponse embedding
+            if (!string.IsNullOrEmpty(record.ToolUseTextResponse) &&
+                (replaceExisting || record.ToolUseTextResponseEmbedding == null))
+            {
+                var embedding = await _embedder.TryGetEmbeddingsAsync(record.ToolUseTextResponse);
+                if (embedding != null)
+                {
+                    updates["ToolUseTextResponseEmbedding"] = JsonConvert.SerializeObject(embedding);
+                    anyUpdated = true;
+                }
+
+                var embeddingList = await TryGetEmbeddingListAsync(record.ToolUseTextResponse);
+                if (embeddingList != null)
+                {
+                    updates["ToolUseTextResponseEmbeddingList"] = JsonConvert.SerializeObject(embeddingList);
+                }
+            }
+
+            // Regenerate Summary embedding
+            if (!string.IsNullOrEmpty(record.Summary) &&
+                (replaceExisting || record.SummaryEmbedding == null))
+            {
+                var embedding = await _embedder.TryGetEmbeddingsAsync(record.Summary);
+                if (embedding != null)
+                {
+                    updates["SummaryEmbedding"] = JsonConvert.SerializeObject(embedding);
+                    anyUpdated = true;
+                }
+
+                var embeddingList = await TryGetEmbeddingListAsync(record.Summary);
+                if (embeddingList != null)
+                {
+                    updates["SummaryEmbeddingList"] = JsonConvert.SerializeObject(embeddingList);
+                }
+            }
+
+            // Apply updates if any
+            if (updates.Count > 0)
+            {
+                await UpdateEmbeddingColumnsAsync(record.RequestID!, updates);
+            }
+
+            return anyUpdated;
+        }
+
+        /// <summary>
+        /// Helper to get embedding list with error handling
+        /// </summary>
+        private async Task<List<float[]>?> TryGetEmbeddingListAsync(string text)
+        {
+            try
+            {
+                return await _embedder.SplitStringIntoEmbeddingsListAsync(text);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Updates specific embedding columns for a record
+        /// </summary>
+        private async Task UpdateEmbeddingColumnsAsync(string requestId, Dictionary<string, string> updates)
+        {
+            if (updates.Count == 0) return;
+
+            var setClauses = string.Join(", ", updates.Keys.Select(k => $"{k} = @{k}"));
+            var query = $"UPDATE embeddings SET {setClauses} WHERE RequestID = @RequestID";
+
+            using var connection = await GetConnectionAsync();
+            using var command = new SqliteCommand(query, connection);
+
+            command.Parameters.AddWithValue("@RequestID", requestId);
+            foreach (var kvp in updates)
+            {
+                command.Parameters.AddWithValue($"@{kvp.Key}", kvp.Value);
+            }
+
+            await command.ExecuteNonQueryAsync();
+            InvalidateCache(requestId);
+        }
+
+        /// <summary>
+        /// Rebuilds LSH index entries for a specific record
+        /// </summary>
+        private async Task RebuildLSHForRecordAsync(int recordId)
+        {
+            var record = await GetFeedbackDataByIdAsync(recordId);
+            if (record == null) return;
+
+            // Remove old LSH entries (clear from all hash tables for this ID)
+            foreach (var hashTable in _hashTables)
+            {
+                foreach (var bucket in hashTable.Values)
+                {
+                    bucket.Remove(recordId);
+                }
+            }
+
+            // Re-add with new embeddings
+            if (record.RequestEmbedding != null)
+                InsertLSH(recordId, record.RequestEmbedding);
+
+            if (record.TextResponseEmbedding != null)
+                InsertLSH(recordId, record.TextResponseEmbedding);
+
+            if (record.ToolUseTextResponseEmbedding != null)
+                InsertLSH(recordId, record.ToolUseTextResponseEmbedding);
+
+            if (record.RequestEmbeddingList != null)
+                foreach (var emb in record.RequestEmbeddingList)
+                    InsertLSH(recordId, emb);
+
+            if (record.TextResponseEmbeddingList != null)
+                foreach (var emb in record.TextResponseEmbeddingList)
+                    InsertLSH(recordId, emb);
+
+            if (record.ToolUseTextResponseEmbeddingList != null)
+                foreach (var emb in record.ToolUseTextResponseEmbeddingList)
+                    InsertLSH(recordId, emb);
+        }
+
+        /// <summary>
+        /// Clears all LSH tables and rebuilds from database
+        /// Call this after major embedding changes
+        /// </summary>
+        public async Task RebuildAllLSHAsync(Action<int, int>? progress = null)
+        {
+            LogMessage("Rebuilding all LSH indexes...");
+
+            // Clear all hash tables
+            foreach (var hashTable in _hashTables)
+            {
+                hashTable.Clear();
+            }
+
+            // Reload from database
+            const string query = "SELECT Id, RequestEmbedding, TextResponseEmbedding, ToolUseTextResponseEmbedding, " +
+                                "RequestEmbeddingList, TextResponseEmbeddingList, ToolUseTextResponseEmbeddingList " +
+                                "FROM embeddings WHERE RequestEmbedding IS NOT NULL";
+
+            using var connection = await GetConnectionAsync();
+            using var command = new SqliteCommand(query, connection);
+
+            var records = new List<(int Id, string? RE, string? TRE, string? TUTRE, string? REL, string? TREL, string? TUTREL)>();
+
+            using (var reader = await command.ExecuteReaderAsync())
+            {
+                while (await reader.ReadAsync())
+                {
+                    records.Add((
+                        reader.GetInt32(0),
+                        reader.IsDBNull(1) ? null : reader.GetString(1),
+                        reader.IsDBNull(2) ? null : reader.GetString(2),
+                        reader.IsDBNull(3) ? null : reader.GetString(3),
+                        reader.IsDBNull(4) ? null : reader.GetString(4),
+                        reader.IsDBNull(5) ? null : reader.GetString(5),
+                        reader.IsDBNull(6) ? null : reader.GetString(6)
+                    ));
+                }
+            }
+
+            int processed = 0;
+            foreach (var record in records)
+            {
+                if (!string.IsNullOrEmpty(record.RE))
+                {
+                    var emb = JsonConvert.DeserializeObject<float[]>(record.RE);
+                    if (emb != null) InsertLSH(record.Id, emb);
+                }
+
+                if (!string.IsNullOrEmpty(record.TRE))
+                {
+                    var emb = JsonConvert.DeserializeObject<float[]>(record.TRE);
+                    if (emb != null) InsertLSH(record.Id, emb);
+                }
+
+                if (!string.IsNullOrEmpty(record.TUTRE))
+                {
+                    var emb = JsonConvert.DeserializeObject<float[]>(record.TUTRE);
+                    if (emb != null) InsertLSH(record.Id, emb);
+                }
+
+                if (!string.IsNullOrEmpty(record.REL))
+                {
+                    var list = JsonConvert.DeserializeObject<List<float[]>>(record.REL);
+                    if (list != null) foreach (var emb in list) InsertLSH(record.Id, emb);
+                }
+
+                if (!string.IsNullOrEmpty(record.TREL))
+                {
+                    var list = JsonConvert.DeserializeObject<List<float[]>>(record.TREL);
+                    if (list != null) foreach (var emb in list) InsertLSH(record.Id, emb);
+                }
+
+                if (!string.IsNullOrEmpty(record.TUTREL))
+                {
+                    var list = JsonConvert.DeserializeObject<List<float[]>>(record.TUTREL);
+                    if (list != null) foreach (var emb in list) InsertLSH(record.Id, emb);
+                }
+
+                processed++;
+                progress?.Invoke(processed, records.Count);
+            }
+
+            LogMessage($"LSH rebuild complete. Processed {processed} records.");
+        }
+
+        #endregion
+
+        #region Backfill Result Class
+
+        public class BackfillResult
+        {
+            public int TotalRecords { get; set; }
+            public int ProcessedCount { get; set; }
+            public int SuccessCount { get; set; }
+            public int FailedCount { get; set; }
+            public int SkippedCount { get; set; }
+            public bool WasCancelled { get; set; }
+            public TimeSpan ElapsedTime { get; set; }
+            public List<string> Errors { get; set; } = new List<string>();
+
+            public override string ToString() =>
+                $"Backfill: {SuccessCount}/{TotalRecords} succeeded, {FailedCount} failed, {SkippedCount} skipped in {ElapsedTime.TotalSeconds:F1}s" +
+                (WasCancelled ? " (CANCELLED)" : "");
+        }
+
+        #endregion
+
         #region Internal - Data Operations
 
         private async Task AddDataToEmbeddingDatabaseAsync(FeedbackDatabaseValues data)
