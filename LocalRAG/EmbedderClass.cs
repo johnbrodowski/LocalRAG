@@ -71,9 +71,10 @@ namespace LocalRAG
                 }
             }
 
-            // Fallback: assume BERT large (1024) or use config
-            // Most ONNX BERT models use 768 (base) or 1024 (large)
-            return _config.MaxSequenceLength; // Your config uses 512, adjust if needed
+            // Fallback: assume BERT base (768) which is most common
+            // BERT base: 768, BERT large: 1024
+            // MaxSequenceLength (512) is NOT the hidden dimension!
+            return 768;
         }
 
         /// <summary>
@@ -109,7 +110,11 @@ namespace LocalRAG
 
         private async Task<float[]> GetEmbeddingsInternalAsync(string textToEmbed)
         {
-            var text = PreprocessText(RemoveStopWords(TrimWhitespace(textToEmbed)));
+            // IMPORTANT: Do NOT remove stop words for BERT embeddings!
+            // BERT is a contextual model trained on complete sentences.
+            // Stop words provide grammatical structure essential for semantic understanding.
+            // Only do minimal cleanup (whitespace normalization).
+            var text = NormalizeWhitespace(textToEmbed);
 
             if (string.IsNullOrWhiteSpace(text))
                 throw new ArgumentException("Text is empty after preprocessing.", nameof(textToEmbed));
@@ -296,6 +301,20 @@ namespace LocalRAG
         }
 
         #region Text Processing
+
+        /// <summary>
+        /// Normalizes whitespace without removing stop words or punctuation.
+        /// BERT handles these naturally and they provide important context.
+        /// </summary>
+        private static string NormalizeWhitespace(string input)
+        {
+            if (string.IsNullOrEmpty(input))
+                return string.Empty;
+
+            // Replace multiple whitespace characters with single space
+            var normalized = System.Text.RegularExpressions.Regex.Replace(input.Trim(), @"\s+", " ");
+            return normalized;
+        }
 
         private List<string> SlidingWindow(string text, int wordsPerString, double overlapPercentage)
         {
