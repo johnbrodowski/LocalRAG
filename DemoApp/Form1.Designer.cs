@@ -34,38 +34,40 @@
             menuStrip1 = new MenuStrip();
             fileToolStripMenuItem = new ToolStripMenuItem();
             ragToolStripMenuItem = new ToolStripMenuItem();
+            backfillToolStripMenuItem = new ToolStripMenuItem();
+            missingToolStripMenuItem = new ToolStripMenuItem();
             allToolStripMenuItem = new ToolStripMenuItem();
-            replaceAllToolStripMenuItem = new ToolStripMenuItem();
             menuStrip1.SuspendLayout();
             SuspendLayout();
-            //
+            // 
             // btnSearch
-            //
+            // 
             btnSearch.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            btnSearch.Location = new Point(648, 50);
+            btnSearch.Location = new Point(659, 26);
             btnSearch.Name = "btnSearch";
-            btnSearch.Size = new Size(75, 23);
+            btnSearch.Size = new Size(75, 26);
             btnSearch.TabIndex = 0;
             btnSearch.Text = "Search";
             btnSearch.UseVisualStyleBackColor = true;
             btnSearch.Click += btnSearch_Click;
-            //
+            // 
             // txtResult
-            //
+            // 
             txtResult.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
-            txtResult.Location = new Point(2, 62);
+            txtResult.Location = new Point(5, 56);
             txtResult.Multiline = true;
             txtResult.Name = "txtResult";
             txtResult.ScrollBars = ScrollBars.Vertical;
-            txtResult.Size = new Size(680, 150);
+            txtResult.Size = new Size(726, 219);
             txtResult.TabIndex = 1;
-            //
+            // 
             // txtQuery
-            //
+            // 
             txtQuery.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-            txtQuery.Location = new Point(2, 50);
+            txtQuery.Font = new Font("Segoe UI", 10F);
+            txtQuery.Location = new Point(6, 28);
             txtQuery.Name = "txtQuery";
-            txtQuery.Size = new Size(640, 23);
+            txtQuery.Size = new Size(650, 25);
             txtQuery.TabIndex = 2;
             txtQuery.Text = "Simple query that might have some matches in the rag database.";
             // 
@@ -86,10 +88,23 @@
             // 
             // ragToolStripMenuItem
             // 
-            ragToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { allToolStripMenuItem, replaceAllToolStripMenuItem });
+            ragToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { backfillToolStripMenuItem });
             ragToolStripMenuItem.Name = "ragToolStripMenuItem";
             ragToolStripMenuItem.Size = new Size(39, 20);
             ragToolStripMenuItem.Text = "Rag";
+            // 
+            // backfillToolStripMenuItem
+            // 
+            backfillToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { missingToolStripMenuItem, allToolStripMenuItem });
+            backfillToolStripMenuItem.Name = "backfillToolStripMenuItem";
+            backfillToolStripMenuItem.Size = new Size(180, 22);
+            backfillToolStripMenuItem.Text = "Backfill";
+            // 
+            // missingToolStripMenuItem
+            // 
+            missingToolStripMenuItem.Name = "missingToolStripMenuItem";
+            missingToolStripMenuItem.Size = new Size(180, 22);
+            missingToolStripMenuItem.Text = "Missing";
             // 
             // allToolStripMenuItem
             // 
@@ -97,14 +112,8 @@
             allToolStripMenuItem.Size = new Size(180, 22);
             allToolStripMenuItem.Text = "All";
             // 
-            // replaceAllToolStripMenuItem
-            // 
-            replaceAllToolStripMenuItem.Name = "replaceAllToolStripMenuItem";
-            replaceAllToolStripMenuItem.Size = new Size(180, 22);
-            replaceAllToolStripMenuItem.Text = "Replace All";
-            // 
             // Form1
-            //
+            // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(735, 279);
@@ -130,7 +139,8 @@
         private MenuStrip menuStrip1;
         private ToolStripMenuItem fileToolStripMenuItem;
         private ToolStripMenuItem ragToolStripMenuItem;
+        private ToolStripMenuItem backfillToolStripMenuItem;
+        private ToolStripMenuItem missingToolStripMenuItem;
         private ToolStripMenuItem allToolStripMenuItem;
-        private ToolStripMenuItem replaceAllToolStripMenuItem;
     }
 }

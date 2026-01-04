@@ -22,7 +22,7 @@ namespace DemoApp
 
         private async void Form1_Load(object sender, EventArgs e)
         {
-            _feedbackEmbeddingDatabase = new EmbeddingDatabaseNew(new RAGConfiguration());
+            db = new EmbeddingDatabaseNew(new RAGConfiguration());
         }
 
         private async Task<string> FormatRelevantFeedback(string query, int topK = 30, int minWordsToTriggerLsh = 1)
@@ -121,7 +121,7 @@ namespace DemoApp
         private async void btnRunTests_Click(object sender, EventArgs e)
         {
             txtResult.Text = "Running tests...\r\n";
-            btnRunTests.Enabled = false;
+           // btnRunTests.Enabled = false;
 
             try
             {
@@ -167,13 +167,13 @@ namespace DemoApp
             }
             finally
             {
-                btnRunTests.Enabled = true;
+               // btnRunTests.Enabled = true;
             }
         }
 
         private async void btnGenerateMockData_Click(object sender, EventArgs e)
         {
-            btnGenerateMockData.Enabled = false;
+          //  btnGenerateMockData.Enabled = false;
             txtResult.Text = "Generating mock data...\r\n";
 
             try
@@ -182,11 +182,11 @@ namespace DemoApp
                 sb.AppendLine("=== Mock Data Generation ===\r\n");
 
                 // Get stats before
-                var statsBefore = await _feedbackEmbeddingDatabase.GetStatsAsync();
+                var statsBefore = await db.GetStatsAsync();
                 sb.AppendLine($"Before: {statsBefore.TotalRecords} records\r\n");
 
                 // Generate mock data
-                int count = await _feedbackEmbeddingDatabase.PopulateWithMockDataAsync(
+                int count = await db.PopulateWithMockDataAsync(
                     count: 20,
                     generateEmbeddings: true,
                     progress: (done, total) =>
@@ -196,7 +196,7 @@ namespace DemoApp
                 );
 
                 // Get stats after
-                var statsAfter = await _feedbackEmbeddingDatabase.GetStatsAsync();
+                var statsAfter = await db.GetStatsAsync();
                 sb.AppendLine($"Created {count} mock records\r\n");
                 sb.AppendLine($"After: {statsAfter}\r\n");
 
@@ -208,7 +208,7 @@ namespace DemoApp
             }
             finally
             {
-                btnGenerateMockData.Enabled = true;
+              //  btnGenerateMockData.Enabled = true;
             }
         }
     }
