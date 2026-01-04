@@ -19,138 +19,71 @@ namespace DemoApp
         private async void Form1_Load(object sender, EventArgs e)
         {
             _feedbackEmbeddingDatabase = new EmbeddingDatabaseNew(new RAGConfiguration());
-           // await Test();
-        }
-
-        private async Task Test()
-        {
-            //await _feedbackEmbeddingDatabase.AddRequestToEmbeddingDatabaseAsync(
-            // requestId: "1000",
-            // theRequest: "a sample message",
-            // embed: true
-            // );
-
-            //await _feedbackEmbeddingDatabase.UpdateTextResponse(
-            //    requestId: "1000",
-            //    message: "a sample response",
-            //    embed: true
-            //    );
-
-
-            //   await LoadConversationHistory();
-
-            //var msg = await FormatRelevantFeedback();
-
-            //Debug.WriteLine($"\n\n\n\n{msg}");
-
-
         }
 
         private async Task<string> FormatRelevantFeedback(string query, int topK = 30, int minWordsToTriggerLsh = 1)
         {
             var sb = new StringBuilder();
 
-            //if (CountWords(query) > minWordsToTriggerLsh)
-            //{
-                List<FeedbackDatabaseValues> results = await _feedbackEmbeddingDatabase.SearchEmbeddingsAsync(
-                searchText: query,
-                topK: topK,
-              //  minimumSimilarity: 0.05f,
-                  minimumSimilarity: 0.00f,
-                searchLevel: 2
-                );
+            List<FeedbackDatabaseValues> results = await _feedbackEmbeddingDatabase.SearchEmbeddingsAsync(
+            searchText: query,
+            topK: topK,
+            minimumSimilarity: 0.00f,
+            searchLevel: 2
+            );
 
-                void AppendSection(StringBuilder sb, string title, string? content)
+            void AppendSection(StringBuilder sb, string title, string? content)
+            {
+                if (!string.IsNullOrEmpty(content))
                 {
-                    if (!string.IsNullOrEmpty(content))
-                    {
-                        sb.AppendLine($"{title}: {content}");
-                    }
+                    sb.AppendLine($"{title}: {content}");
                 }
+            }
 
-                var sortedResults = results
-                    .Where(x => x.Similarity.HasValue)
-                    .OrderByDescending(x => x.Similarity)
-                .ToList();
+            var sortedResults = results
+                .Where(x => x.Similarity.HasValue)
+                .OrderByDescending(x => x.Similarity)
+            .ToList();
 
-                // string truncatedMessage = $"Long messages are truncated for efficiency, use the
-                // 'request_full_content' tool with the Request ID to full content.";
+            sb.AppendLine($"# Here is a list of potentially relevant feedback from the RAG for you to consider when formulating your response.");
+            sb.AppendLine(@"Note: Similarity scores are guides, not gospel. Evaluate actual relevance and usefulness of returned content, regardless of numerical scores.");
 
-              //  if (!string.IsNullOrEmpty(query) && results.Count > 0)
-               // {
-                    sb.AppendLine($"# Here is a list of potentially relevant feedback from the RAG for you to consider when formulating your response.");
-                    sb.AppendLine(@"Note: Similarity scores are guides, not gospel. Evaluate actual relevance and usefulness of returned content, regardless of numerical scores.");
-                    // sb.AppendLine(@"Attention: Long responses will be truncated, but soon you
-                    // will be able to request the complete response if you need to.");
-                    foreach (var (result, index) in sortedResults.Select((result, index) => (result, index + 1)))
-                    {
-                
-                    AppendSection(sb, "Users Request", result.Request);
-                
-                    sb.AppendLine().AppendLine($"Results: {index} - Similarity {result.Similarity:F5}");
-                        //.AppendLine($"# Similarity #\n{result.Similarity:F5}");
+            foreach (var (result, index) in sortedResults.Select((result, index) => (result, index + 1)))
+            {
+                AppendSection(sb, "Users Request", result.Request);
 
-                        // AppendSection(sb, "Request ID", result.RequestID);
-                        //AppendSection(sb, "Rating", result.Rating?.ToString() ?? "0");
-                       // if (!string.IsNullOrEmpty(result.Request)) 
-                    AppendSection(sb, "Users Request", result.Request);
+                sb.AppendLine().AppendLine($"Results: {index} - Similarity {result.Similarity:F5}");
 
-                       // if (!string.IsNullOrEmpty(result.TextResponse)) 
-                    AppendSection(sb, "AI text Response", GetTruncatedText(result.TextResponse, 3000));
+                AppendSection(sb, "Users Request", result.Request);
+                AppendSection(sb, "AI text Response", GetTruncatedText(result.TextResponse, 3000));
+                AppendSection(sb, "AI Tool Use TextResponse", GetTruncatedText(result.ToolUseTextResponse, 3000));
+            }
 
-                       // if (!string.IsNullOrEmpty(result.ToolUseTextResponse)) 
-                    AppendSection(sb, "AI Tool Use TextResponse", GetTruncatedText(result.ToolUseTextResponse, 3000));
-
-                        //AppendSection(sb, "Tool Content", GetTruncatedText(result.ToolContent, 300));
-                    }
-
-                    sb.AppendLine($"User Request:");
-                    sb.AppendLine();
-                //}
-
-                //sb.AppendLine($"{query}");
-            //}
-            //else
-            //{
-            //    sb.Append($"{query}");
-           // }
-
-
-
+            sb.AppendLine($"User Request:");
+            sb.AppendLine();
 
             return sb.ToString();
         }
 
         private async Task LoadConversationHistory(int maxMsgCount = 10, bool showToolInputs = true, bool removeToolMessages = true)
         {
-
-
             try
             {
                 List<(string request, string textResponse, string toolUseTextResponse, string toolContent, string toolResult, string requestID)> recentHistory =
-
                 await _feedbackEmbeddingDatabase.GetConversationHistoryAsync(maxMsgCount);
 
                 foreach (var (request, textResponse, toolUseTextResponse, toolContent, toolResult, requestId) in recentHistory)
                 {
                     if (!string.IsNullOrEmpty(request) && !string.IsNullOrEmpty(textResponse))
                     {
-                        //dbMessageList.Add(MessageAnthropic.CreateUserMessage(GetTruncatedText(request, 400, " - (Truncated)")));
-                        //dbMessageList.Add(MessageAnthropic.CreateAssistantTextMessage(GetTruncatedText(textResponse ?? "N/A", 400, " - (Truncated)")));
-                        // dbMessageList.Add(MessageAnthropic.CreateUserMessage(request));
-                        //  dbMessageList.Add(MessageAnthropic.CreateAssistantTextMessage(textResponse));
-
                         Debug.WriteLine($"Request: {request}");
                         Debug.WriteLine($"Response: {textResponse}");
-
                     }
                 }
-
-
             }
             catch (Exception ex)
             {
-
+                Debug.WriteLine($"Error loading history: {ex.Message}");
             }
         }
 
@@ -173,16 +106,102 @@ namespace DemoApp
 
         private async void btnSearch_Click(object sender, EventArgs e)
         {
-
             var msg = await FormatRelevantFeedback(txtQuery.Text);
-
             txtResult.Text = msg;
-
         }
 
+        private async void btnRunTests_Click(object sender, EventArgs e)
+        {
+            txtResult.Text = "Running tests...\r\n";
+            btnRunTests.Enabled = false;
 
+            try
+            {
+                var tests = new EmbeddingTests();
+                var sb = new StringBuilder();
 
+                // Capture console output
+                var originalOut = Console.Out;
+                using var writer = new StringWriter();
+                Console.SetOut(writer);
 
+                try
+                {
+                    // Run unit tests (no BERT model required)
+                    var results = await tests.RunAllTestsAsync(null);
 
+                    // Try to run integration tests if config is available
+                    try
+                    {
+                        var config = new RAGConfiguration();
+                        if (System.IO.File.Exists(config.ModelPath))
+                        {
+                            sb.AppendLine("\r\n--- Running Integration Tests ---\r\n");
+                            results = await tests.RunAllTestsAsync(config);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        sb.AppendLine($"\r\nIntegration tests skipped: {ex.Message}");
+                    }
+                }
+                finally
+                {
+                    Console.SetOut(originalOut);
+                }
+
+                sb.Insert(0, writer.ToString().Replace("\n", "\r\n"));
+                txtResult.Text = sb.ToString();
+            }
+            catch (Exception ex)
+            {
+                txtResult.Text = $"Test error: {ex.Message}\r\n{ex.StackTrace}";
+            }
+            finally
+            {
+                btnRunTests.Enabled = true;
+            }
+        }
+
+        private async void btnGenerateMockData_Click(object sender, EventArgs e)
+        {
+            btnGenerateMockData.Enabled = false;
+            txtResult.Text = "Generating mock data...\r\n";
+
+            try
+            {
+                var sb = new StringBuilder();
+                sb.AppendLine("=== Mock Data Generation ===\r\n");
+
+                // Get stats before
+                var statsBefore = await _feedbackEmbeddingDatabase.GetStatsAsync();
+                sb.AppendLine($"Before: {statsBefore.TotalRecords} records\r\n");
+
+                // Generate mock data
+                int count = await _feedbackEmbeddingDatabase.PopulateWithMockDataAsync(
+                    count: 20,
+                    generateEmbeddings: true,
+                    progress: (done, total) =>
+                    {
+                        this.Invoke(() => txtResult.Text = $"Generating: {done}/{total}...");
+                    }
+                );
+
+                // Get stats after
+                var statsAfter = await _feedbackEmbeddingDatabase.GetStatsAsync();
+                sb.AppendLine($"Created {count} mock records\r\n");
+                sb.AppendLine($"After: {statsAfter}\r\n");
+
+                txtResult.Text = sb.ToString();
+            }
+            catch (Exception ex)
+            {
+                txtResult.Text = $"Error: {ex.Message}\r\n{ex.StackTrace}";
+            }
+            finally
+            {
+                btnGenerateMockData.Enabled = true;
+            }
+        }
     }
 }
