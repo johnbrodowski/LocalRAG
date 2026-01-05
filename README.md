@@ -165,7 +165,55 @@ The demo shows:
 - **Threading**: Adjust `InterOpNumThreads` and `IntraOpNumThreads` based on your CPU
 - **Database Size**: SQLite performs well up to several million embeddings
 
+## Running Tests
+
+LocalRAG includes two types of tests:
+
+### Unit Tests
+Unit tests don't require BERT models and can run immediately:
+```bash
+dotnet test --filter "Category!=Integration"
+```
+
+### Integration Tests
+Integration tests require a BERT model and vocabulary file. Follow these steps:
+
+1. **Configure test environment variables:**
+   ```bash
+   # Copy the template file
+   cp test.runsettings.example test.runsettings
+
+   # Edit test.runsettings and set your actual paths:
+   # - BERT_MODEL_PATH: Full path to your .onnx file (not directory)
+   # - BERT_VOCAB_PATH: Full path to your vocab .txt file (not directory)
+   ```
+
+2. **Example paths:**
+   - Windows: `C:\Users\...\onnxBERT\model2.onnx`
+   - Linux/Mac: `/home/user/.../onnxBERT/model2.onnx`
+
+3. **Run all tests:**
+   ```bash
+   dotnet test --settings test.runsettings
+   ```
+
+4. **Run only integration tests:**
+   ```bash
+   dotnet test --settings test.runsettings --filter "Category=Integration"
+   ```
+
+**Note:** The `launchSettings.json` file only works with `dotnet run` and Visual Studio debugging. For `dotnet test`, you must use the `.runsettings` file.
+
+**Important:** Make sure your paths point to **files** (e.g., `model2.onnx` and `vocab.txt`), not directories. The integration tests use `File.Exists()` to verify the paths.
+
 ## Troubleshooting
+
+### Integration tests are skipped
+If you see "BERT model not configured" errors:
+1. Verify `test.runsettings` exists and has correct paths
+2. Ensure paths point to actual files (not directories)
+3. Use absolute paths, not relative paths
+4. Run tests with: `dotnet test --settings test.runsettings`
 
 ### Model not found error
 Ensure the ONNX model file exists at the configured `ModelPath`. Download from Hugging Face if needed.
