@@ -483,10 +483,29 @@ namespace LocalRAG
             int matchedWords = searchWords.Count(word => docWordSet.Contains(word.ToLower()));
             double baseScore = (double)matchedWords / searchWords.Length;
 
-            // Phrase match bonus - check if all search words appear consecutively as whole words
-            var searchPhrase = string.Join(" ", searchWords).ToLower();
-            var docWordString = string.Join(" ", docWords);
-            double phraseMatchBonus = docWordString.Contains(searchPhrase) ? 0.2 : 0;
+            // Phrase match bonus - check if search words appear as consecutive whole words
+            bool phraseMatch = false;
+            if (searchWords.Length <= docWords.Length)
+            {
+                for (int i = 0; i <= docWords.Length - searchWords.Length; i++)
+                {
+                    bool match = true;
+                    for (int j = 0; j < searchWords.Length; j++)
+                    {
+                        if (!docWords[i + j].Equals(searchWords[j], StringComparison.OrdinalIgnoreCase))
+                        {
+                            match = false;
+                            break;
+                        }
+                    }
+                    if (match)
+                    {
+                        phraseMatch = true;
+                        break;
+                    }
+                }
+            }
+            double phraseMatchBonus = phraseMatch ? 0.2 : 0;
 
             double density = docWords.Length > 0 ? (double)matchedWords / docWords.Length : 0;
 
