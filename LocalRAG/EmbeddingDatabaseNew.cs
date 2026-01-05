@@ -1628,7 +1628,29 @@ FROM embeddings WHERE RequestID = @RequestID";
             int matchedWords = searchWords.Count(word => docWordSet.Contains(word));
             double baseScore = (double)matchedWords / searchWords.Length;
 
-            double phraseMatchBonus = documentText.Contains(string.Join(" ", searchWords)) ? 0.2 : 0;
+            // Phrase match bonus - check if search words appear as consecutive whole words
+            bool phraseMatch = false;
+            if (searchWords.Length <= docWords.Length)
+            {
+                for (int i = 0; i <= docWords.Length - searchWords.Length; i++)
+                {
+                    bool match = true;
+                    for (int j = 0; j < searchWords.Length; j++)
+                    {
+                        if (!docWords[i + j].Equals(searchWords[j], StringComparison.OrdinalIgnoreCase))
+                        {
+                            match = false;
+                            break;
+                        }
+                    }
+                    if (match)
+                    {
+                        phraseMatch = true;
+                        break;
+                    }
+                }
+            }
+            double phraseMatchBonus = phraseMatch ? 0.2 : 0;
             double density = docWords.Length > 0 ? (double)matchedWords / docWords.Length : 0;
 
             return Math.Min(baseScore + phraseMatchBonus + (density * 0.1), 1.0);
