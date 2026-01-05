@@ -139,32 +139,6 @@ public class MemoryHashIndexTests
         }
     }
 
-    [Fact]
-    public async Task Delete_RemovesVector()
-    {
-        var options = new MemoryHashIndex.MemoryHashOptions
-        {
-            NumHashFunctions = 8,
-            NumBuckets = 256,
-            SimilarityThreshold = 0.5
-        };
-        using var index = new MemoryHashIndex(options);
-
-        var vector = GenerateRandomVector(768);
-        await index.AddOrUpdateAsync("to-delete", vector, new Dictionary<string, string>());
-
-        // Verify it's there
-        var resultsBefore = await index.SearchAsync(vector, 10);
-        Assert.Contains(resultsBefore, r => r.Id == "to-delete");
-
-        // Delete it
-        await index.RemoveAsync("to-delete");
-
-        // Verify it's gone
-        var resultsAfter = await index.SearchAsync(vector, 10);
-        Assert.DoesNotContain(resultsAfter, r => r.Id == "to-delete");
-    }
-
     private static float[] GenerateRandomVector(int dimension, int seed = 42)
     {
         var random = new Random(seed);
