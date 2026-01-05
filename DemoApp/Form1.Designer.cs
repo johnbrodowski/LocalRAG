@@ -31,14 +31,18 @@
             btnSearch = new Button();
             txtResult = new TextBox();
             txtQuery = new TextBox();
-            btnRunTests = new Button();
-            btnGenerateMockData = new Button();
+            menuStrip1 = new MenuStrip();
+            fileToolStripMenuItem = new ToolStripMenuItem();
+            ragToolStripMenuItem = new ToolStripMenuItem();
+            allToolStripMenuItem = new ToolStripMenuItem();
+            replaceAllToolStripMenuItem = new ToolStripMenuItem();
+            menuStrip1.SuspendLayout();
             SuspendLayout();
             //
             // btnSearch
             //
             btnSearch.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            btnSearch.Location = new Point(616, 3);
+            btnSearch.Location = new Point(648, 50);
             btnSearch.Name = "btnSearch";
             btnSearch.Size = new Size(75, 23);
             btnSearch.TabIndex = 0;
@@ -59,45 +63,61 @@
             // txtQuery
             //
             txtQuery.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-            txtQuery.Location = new Point(2, 3);
+            txtQuery.Location = new Point(2, 50);
             txtQuery.Name = "txtQuery";
-            txtQuery.Size = new Size(599, 23);
+            txtQuery.Size = new Size(640, 23);
             txtQuery.TabIndex = 2;
             txtQuery.Text = "Simple query that might have some matches in the rag database.";
-            //
-            // btnRunTests
-            //
-            btnRunTests.Location = new Point(2, 32);
-            btnRunTests.Name = "btnRunTests";
-            btnRunTests.Size = new Size(100, 23);
-            btnRunTests.TabIndex = 3;
-            btnRunTests.Text = "Run Tests";
-            btnRunTests.UseVisualStyleBackColor = true;
-            btnRunTests.Click += btnRunTests_Click;
-            //
-            // btnGenerateMockData
-            //
-            btnGenerateMockData.Location = new Point(108, 32);
-            btnGenerateMockData.Name = "btnGenerateMockData";
-            btnGenerateMockData.Size = new Size(120, 23);
-            btnGenerateMockData.TabIndex = 4;
-            btnGenerateMockData.Text = "Generate Mock Data";
-            btnGenerateMockData.UseVisualStyleBackColor = true;
-            btnGenerateMockData.Click += btnGenerateMockData_Click;
-            //
+            // 
+            // menuStrip1
+            // 
+            menuStrip1.Items.AddRange(new ToolStripItem[] { fileToolStripMenuItem, ragToolStripMenuItem });
+            menuStrip1.Location = new Point(0, 0);
+            menuStrip1.Name = "menuStrip1";
+            menuStrip1.Size = new Size(735, 24);
+            menuStrip1.TabIndex = 3;
+            menuStrip1.Text = "menuStrip1";
+            // 
+            // fileToolStripMenuItem
+            // 
+            fileToolStripMenuItem.Name = "fileToolStripMenuItem";
+            fileToolStripMenuItem.Size = new Size(37, 20);
+            fileToolStripMenuItem.Text = "File";
+            // 
+            // ragToolStripMenuItem
+            // 
+            ragToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { allToolStripMenuItem, replaceAllToolStripMenuItem });
+            ragToolStripMenuItem.Name = "ragToolStripMenuItem";
+            ragToolStripMenuItem.Size = new Size(39, 20);
+            ragToolStripMenuItem.Text = "Rag";
+            // 
+            // allToolStripMenuItem
+            // 
+            allToolStripMenuItem.Name = "allToolStripMenuItem";
+            allToolStripMenuItem.Size = new Size(180, 22);
+            allToolStripMenuItem.Text = "All";
+            // 
+            // replaceAllToolStripMenuItem
+            // 
+            replaceAllToolStripMenuItem.Name = "replaceAllToolStripMenuItem";
+            replaceAllToolStripMenuItem.Size = new Size(180, 22);
+            replaceAllToolStripMenuItem.Text = "Replace All";
+            // 
             // Form1
             //
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(694, 224);
-            Controls.Add(btnGenerateMockData);
-            Controls.Add(btnRunTests);
+            ClientSize = new Size(735, 279);
             Controls.Add(txtQuery);
             Controls.Add(txtResult);
             Controls.Add(btnSearch);
+            Controls.Add(menuStrip1);
+            MainMenuStrip = menuStrip1;
             Name = "Form1";
             Text = "LocalRAG Test App";
             Load += Form1_Load;
+            menuStrip1.ResumeLayout(false);
+            menuStrip1.PerformLayout();
             ResumeLayout(false);
             PerformLayout();
         }
@@ -107,7 +127,10 @@
         private Button btnSearch;
         private TextBox txtResult;
         private TextBox txtQuery;
-        private Button btnRunTests;
-        private Button btnGenerateMockData;
+        private MenuStrip menuStrip1;
+        private ToolStripMenuItem fileToolStripMenuItem;
+        private ToolStripMenuItem ragToolStripMenuItem;
+        private ToolStripMenuItem allToolStripMenuItem;
+        private ToolStripMenuItem replaceAllToolStripMenuItem;
     }
 }

@@ -1,4 +1,8 @@
+using Azure.Core;
+
 using LocalRAG;
+
+using Microsoft.ML.OnnxRuntimeGenAI;
 
 using System.Diagnostics;
 using System.Text;
@@ -7,7 +11,7 @@ namespace DemoApp
 {
     public partial class Form1 : Form
     {
-        private EmbeddingDatabaseNew _feedbackEmbeddingDatabase;
+        private EmbeddingDatabaseNew db;
 
         private string _currentRequest = string.Empty;
 
@@ -25,12 +29,15 @@ namespace DemoApp
         {
             var sb = new StringBuilder();
 
-            List<FeedbackDatabaseValues> results = await _feedbackEmbeddingDatabase.SearchEmbeddingsAsync(
-            searchText: query,
-            topK: topK,
-            minimumSimilarity: 0.00f,
-            searchLevel: 2
-            );
+            //if (CountWords(query) > minWordsToTriggerLsh)
+            //{
+                List<FeedbackDatabaseValues> results = await db.SearchEmbeddingsAsync(
+                searchText: query,
+                topK: topK,
+              //  minimumSimilarity: 0.05f,
+                  minimumSimilarity: 0.00f,
+                searchLevel: 2
+                );
 
             void AppendSection(StringBuilder sb, string title, string? content)
             {
@@ -70,7 +77,8 @@ namespace DemoApp
             try
             {
                 List<(string request, string textResponse, string toolUseTextResponse, string toolContent, string toolResult, string requestID)> recentHistory =
-                await _feedbackEmbeddingDatabase.GetConversationHistoryAsync(maxMsgCount);
+
+                await db.GetConversationHistoryAsync(maxMsgCount);
 
                 foreach (var (request, textResponse, toolUseTextResponse, toolContent, toolResult, requestId) in recentHistory)
                 {

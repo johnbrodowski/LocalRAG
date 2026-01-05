@@ -68,6 +68,8 @@ namespace LocalRAG
             "from", "up", "about", "into", "over", "after"
         };
 
+        public bool generateEmbeddings = false;
+
         public EmbeddingDatabaseNew(RAGConfiguration config)
         {
             _config = config ?? throw new ArgumentNullException(nameof(config));
