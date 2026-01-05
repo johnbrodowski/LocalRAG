@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RunSettings>
+  <RunConfiguration>
+    <!-- Set the environment variables for integration tests -->
+    <EnvironmentVariables>
+      <!-- IMPORTANT: Copy this file to 'test.runsettings' and update these paths -->
+      <!-- Paths must point to actual files, not directories -->
+
+      <!-- Windows example: -->
+      <!-- <BERT_MODEL_PATH>C:\path\to\your\model.onnx</BERT_MODEL_PATH> -->
+      <!-- <BERT_VOCAB_PATH>C:\path\to\your\vocab.txt</BERT_VOCAB_PATH> -->
+
+      <!-- Linux/Mac example: -->
+      <!-- <BERT_MODEL_PATH>/home/user/path/to/model.onnx</BERT_MODEL_PATH> -->
+      <!-- <BERT_VOCAB_PATH>/home/user/path/to/vocab.txt</BERT_VOCAB_PATH> -->
+
+      <BERT_MODEL_PATH>REPLACE_WITH_YOUR_MODEL_PATH</BERT_MODEL_PATH>
+      <BERT_VOCAB_PATH>REPLACE_WITH_YOUR_VOCAB_PATH</BERT_VOCAB_PATH>
+    </EnvironmentVariables>
+  </RunConfiguration>
+</RunSettings>

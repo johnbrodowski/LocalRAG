@@ -376,3 +376,6 @@ FodyWeavers.xsd
 onnxBERT/
 Vocabularies/
 Database/
+
+# Test configuration files with user-specific paths
+test.runsettings

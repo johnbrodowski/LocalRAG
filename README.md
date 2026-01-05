@@ -165,6 +165,135 @@ The demo shows:
 - **Threading**: Adjust `InterOpNumThreads` and `IntraOpNumThreads` based on your CPU
 - **Database Size**: SQLite performs well up to several million embeddings
 
+## Running Tests
+
+LocalRAG includes comprehensive test coverage with both unit and integration tests.
+
+### Quick Start - Run All Tests
+
+1. **One-time setup** - Configure your test environment:
+   ```bash
+   # Windows PowerShell
+   copy test.runsettings.example test.runsettings
+
+   # Linux/Mac
+   cp test.runsettings.example test.runsettings
+   ```
+
+2. **Edit `test.runsettings`** and update these two paths:
+   ```xml
+   <BERT_MODEL_PATH>C:\path\to\your\model.onnx</BERT_MODEL_PATH>
+   <BERT_VOCAB_PATH>C:\path\to\your\vocab.txt</BERT_VOCAB_PATH>
+   ```
+
+   **Important:**
+   - Use **absolute paths** to the actual files (not directories)
+   - Point to the `.onnx` file itself (e.g., `model2.onnx`)
+   - Point to the `.txt` vocab file (e.g., `base_cased_large.txt`)
+
+3. **Run tests:**
+   ```bash
+   dotnet test --settings test.runsettings
+   ```
+
+### Expected Output
+
+Successful test run (all 38 tests passing):
+```
+Test summary: total: 38, failed: 0, succeeded: 38, skipped: 0, duration: 13.4s
+Build succeeded in 15.3s
+```
+
+### Test Categories
+
+#### Unit Tests (33 tests)
+Fast tests that don't require BERT models. Run with:
+```bash
+dotnet test --filter "Category!=Integration"
+```
+
+These test core functionality:
+- Text preprocessing and tokenization
+- Database operations
+- Search algorithms (LSH, FTS)
+- Configuration handling
+
+#### Integration Tests (5 tests)
+Tests that require actual BERT models. Run with:
+```bash
+dotnet test --settings test.runsettings --filter "Category=Integration"
+```
+
+These test:
+- BERT embedding generation
+- End-to-end search with real embeddings
+- Model dimension validation (768 for base, 1024 for large)
+- Semantic similarity calculations
+- Mock data generation with embeddings
+
+### Visual Studio Users
+
+In Visual Studio, the tests will appear in Test Explorer. To run integration tests:
+1. Right-click on the solution in Solution Explorer
+2. Select "Configure Run Settings" → "Select Solution Wide runsettings File"
+3. Choose your `test.runsettings` file
+4. Run tests normally from Test Explorer
+
+### Troubleshooting Tests
+
+#### All tests are skipped
+```
+Test summary: total: 38, failed: 0, succeeded: 0, skipped: 38
+```
+**Solution:** You need to create `test.runsettings` and run with `--settings test.runsettings`
+
+#### Integration tests fail with "BERT model not configured"
+```
+LocalRAG.Tests.SkipException : BERT model not configured.
+```
+**Solutions:**
+1. Verify `test.runsettings` exists in the project root
+2. Check that paths point to files, not directories:
+   - ❌ Wrong: `C:\...\onnxBERT\`
+   - ✅ Correct: `C:\...\onnxBERT\model2.onnx`
+3. Verify files exist at those paths:
+   ```bash
+   # Windows
+   dir "C:\path\to\model.onnx"
+   dir "C:\path\to\vocab.txt"
+
+   # Linux/Mac
+   ls -la /path/to/model.onnx
+   ls -la /path/to/vocab.txt
+   ```
+4. Make sure you're running with: `dotnet test --settings test.runsettings`
+
+#### Model file not found
+Ensure you've downloaded a BERT model:
+1. Visit [Hugging Face ONNX Models](https://huggingface.co/models?library=onnx&search=bert)
+2. Download a BERT model (e.g., `bert-base-uncased` or `bert-large-uncased`)
+3. Update `test.runsettings` with the actual file path
+
+### CI/CD Integration
+
+For continuous integration, set environment variables instead:
+```bash
+# Linux/Mac
+export BERT_MODEL_PATH="/path/to/model.onnx"
+export BERT_VOCAB_PATH="/path/to/vocab.txt"
+dotnet test
+
+# Windows
+set BERT_MODEL_PATH=C:\path\to\model.onnx
+set BERT_VOCAB_PATH=C:\path\to\vocab.txt
+dotnet test
+```
+
+Or skip integration tests in CI:
+```bash
+dotnet test --filter "Category!=Integration"
+```
+
 ## Troubleshooting
 
 ### Model not found error
