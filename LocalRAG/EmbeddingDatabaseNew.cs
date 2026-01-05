@@ -1628,7 +1628,10 @@ FROM embeddings WHERE RequestID = @RequestID";
             int matchedWords = searchWords.Count(word => docWordSet.Contains(word));
             double baseScore = (double)matchedWords / searchWords.Length;
 
-            double phraseMatchBonus = documentText.Contains(string.Join(" ", searchWords)) ? 0.2 : 0;
+            // Use word-split string to avoid substring matches (e.g., "the" in "brother")
+            var searchPhrase = string.Join(" ", searchWords).ToLower();
+            var docWordString = string.Join(" ", docWords);
+            double phraseMatchBonus = docWordString.Contains(searchPhrase) ? 0.2 : 0;
             double density = docWords.Length > 0 ? (double)matchedWords / docWords.Length : 0;
 
             return Math.Min(baseScore + phraseMatchBonus + (density * 0.1), 1.0);
