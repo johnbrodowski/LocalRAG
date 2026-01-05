@@ -118,10 +118,10 @@ namespace DemoApp
             txtResult.Text = msg;
         }
 
-        private async void btnRunTests_Click(object sender, EventArgs e)
+        private async void runTestsToolStripMenuItem_Click(object sender, EventArgs e)
         {
             txtResult.Text = "Running tests...\r\n";
-           // btnRunTests.Enabled = false;
+            runTestsToolStripMenuItem.Enabled = false;
 
             try
             {
@@ -167,13 +167,13 @@ namespace DemoApp
             }
             finally
             {
-               // btnRunTests.Enabled = true;
+                runTestsToolStripMenuItem.Enabled = true;
             }
         }
 
-        private async void btnGenerateMockData_Click(object sender, EventArgs e)
+        private async void generateMockDataToolStripMenuItem_Click(object sender, EventArgs e)
         {
-          //  btnGenerateMockData.Enabled = false;
+            generateMockDataToolStripMenuItem.Enabled = false;
             txtResult.Text = "Generating mock data...\r\n";
 
             try
@@ -208,7 +208,47 @@ namespace DemoApp
             }
             finally
             {
-              //  btnGenerateMockData.Enabled = true;
+                generateMockDataToolStripMenuItem.Enabled = true;
+            }
+        }
+
+        private async void missingToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            await RunBackfillAsync("missing");
+        }
+
+        private async void allToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            await RunBackfillAsync("all");
+        }
+
+        private async Task RunBackfillAsync(string mode)
+        {
+            missingToolStripMenuItem.Enabled = false;
+            allToolStripMenuItem.Enabled = false;
+            txtResult.Text = $"Starting backfill (mode: {mode})...\r\n";
+
+            try
+            {
+                var result = await db.BackfillEmbeddingsAsync(
+                    mode: mode,
+                    batchSize: 10,
+                    progress: (done, total, requestId) =>
+                    {
+                        this.Invoke(() => txtResult.Text = $"Backfill: {done}/{total} - {requestId}");
+                    }
+                );
+
+                txtResult.Text = $"Backfill Complete!\r\n\r\n{result}";
+            }
+            catch (Exception ex)
+            {
+                txtResult.Text = $"Backfill error: {ex.Message}\r\n{ex.StackTrace}";
+            }
+            finally
+            {
+                missingToolStripMenuItem.Enabled = true;
+                allToolStripMenuItem.Enabled = true;
             }
         }
     }
