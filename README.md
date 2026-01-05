@@ -32,7 +32,7 @@ LocalRAG provides a complete RAG implementation that runs entirely on your local
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/LocalRAG.git
+git clone https://github.com/johnbrodowski/LocalRAG.git
 cd LocalRAG
 ```
 
