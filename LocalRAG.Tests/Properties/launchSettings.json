@@ -1,0 +1,11 @@
+{
+  "profiles": {
+    "LocalRAG.Tests": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "BERT_MODEL_PATH": "C:\\Users\\Administrator\\source\\repos\\LocalRAG\\DemoApp\\bin\\Debug\\net10.0-windows7.0\\onnxBERT\\model2.onnx",
+        "BERT_VOCAB_PATH": "C:\\Users\\Administrator\\source\\repos\\LocalRAG\\DemoApp\\bin\\Debug\\net10.0-windows7.0\\Vocabularies\\base_cased_large.txt"
+      }
+    }
+  }
+}

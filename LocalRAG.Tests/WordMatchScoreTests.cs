@@ -45,16 +45,27 @@ public class WordMatchScoreTests
     [Fact]
     public void PhraseBonus_WhenWordsAreConsecutive()
     {
-        var searchWords = new[] { "quick", "brown" };
-        var documentWithPhrase = "The quick brown fox";
-        var documentScattered = "Brown leaves fall in quick succession";
+        // Use 3 search words where only 2 match, so base score is 0.67 (not capped at 1.0)
+
+        var searchWords = new[] { "quick", "brown", "lazy" };
+
+        var documentWithPhrase = "The quick brown fox"; // has "quick brown" consecutively, no "lazy"
+
+        var documentScattered = "Brown fox is quick today"; // same words but not consecutive
+
+
 
         var scorePhrase = CalculateWordMatchScore(searchWords, documentWithPhrase);
+
         var scoreScattered = CalculateWordMatchScore(searchWords, documentScattered);
 
-        // Both should find the words, but phrase should score higher due to bonus
+
+
+        // Both find 2 of 3 words (base=0.67), but phrase should get +0.2 bonus
+
         Assert.True(scorePhrase > scoreScattered,
-            $"Phrase match ({scorePhrase}) should score higher than scattered ({scoreScattered})");
+
+            $"Phrase match ({scorePhrase:F3}) should score higher than scattered ({scoreScattered:F3})");
     }
 
     [Fact]

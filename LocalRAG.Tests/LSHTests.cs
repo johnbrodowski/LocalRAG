@@ -49,10 +49,15 @@ public class LSHTests
         var hash1 = index.ComputeLSHHash(vector1);
         var hash2 = index.ComputeLSHHash(vector2);
 
-        // Different random vectors should have fewer matching bits on average
-        int matchingBits = CountMatchingBits(hash1, hash2);
-        // With 8 bits, random vectors should average ~4 matching bits
-        Assert.True(matchingBits <= 7, $"Very different vectors shouldn't match all bits. Matching: {matchingBits}/8");
+        // LSH uses 8 hash functions, so only 8 bits are meaningful
+
+        // Count matching bits in the lower 8 bits only
+
+        int matchingBits = CountMatchingBits(hash1 & 0xFF, hash2 & 0xFF, 8);
+
+        // Random vectors should not match all 8 bits (very unlikely)
+
+        Assert.True(matchingBits < 8, $"Very different vectors shouldn't match all bits. Matching: {matchingBits}/8");
     }
 
     [Fact]
@@ -110,11 +115,15 @@ public class LSHTests
         return vector;
     }
 
-    private static int CountMatchingBits(int a, int b)
+    private static int CountMatchingBits(int a, int b, int numBits = 32)
+
     {
+
         int xor = a ^ b;
+
         int matching = 0;
-        for (int i = 0; i < 32; i++)
+
+        for (int i = 0; i < numBits; i++)
         {
             if ((xor & (1 << i)) == 0)
                 matching++;
